@@ -19,7 +19,7 @@ solana-program = ">=1.18.11,<2"
 light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "27625299f7a5c68b0f0651b7f1f60b1eb79d9d87", default-features = false }
 light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "27625299f7a5c68b0f0651b7f1f60b1eb79d9d87", default-features = false }
 thiserror = "2.0.11"
-borsh = "0.10.0"
+borsh = "1.5.5"
 
 [dev-dependencies]
 solana-program-test = ">=1.18.11,<2"
