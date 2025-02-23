@@ -3,10 +3,12 @@ use borsh::BorshDeserialize;
 use light_compressed_account::{
     compressed_account::PackedMerkleContext, instruction_data::compressed_proof::CompressedProof,
 };
+use light_compressed_token_sdk::cpi::account_info::get_compressed_token_account_info;
 use light_compressed_token_sdk::{
     cpi, cpi::accounts::CompressedTokenDecompressCpiAccounts, state::InputTokenDataWithContext,
 };
 use solana_program::program::invoke_signed;
+use solana_program::pubkey;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
@@ -17,24 +19,27 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
+const CTOKEN_PROGRAM_ID: Pubkey = pubkey!("cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m");
+
 /// Processes claim instruction
 ///
 /// Expected Accounts:
 /// 0. `[signer]` The claimant's account.
 /// 1. `[signer]` The fee payer account.
-/// 2. `[]` The mint account.
-/// 3. `[]` The associated airdrop pda.
-/// 4. `[]` The ctoken cpi authority pda.
-/// 5. `[]` The light system program pda.
-/// 6. `[]` The registered program pda              (read-only).
-/// 7. `[]` The noop program pda                    (read-only).
-/// 8. `[]` The account compression authority pda   (read-only).
-/// 9. `[]` The account compression program pda     (read-only).
-/// 10. `[]` The self program pda                   (read-only).
-/// 11. `[]` The token pool pda                     
-/// 12. `[]` The decompress destination account   
-/// 13. `[]` The token program                      (read-only).
-/// 14. `[]` The system program                     (read-only).
+/// 2. `[]` The associated airdrop pda.
+/// 3. `[]` The ctoken cpi authority pda.
+/// 4. `[]` The light system program pda.
+/// 5. `[]` The registered program pda              (read-only).
+/// 6. `[]` The noop program pda                    (read-only).
+/// 7. `[]` The account compression authority pda   (read-only).
+/// 8. `[]` The account compression program pda     (read-only).
+/// 9. `[]` The Compressed Token program            (read-only).
+/// 10. `[]` The token pool pda                     
+/// 11. `[]` The decompress destination account   
+/// 12. `[]` The token program                      (read-only).
+/// 13. `[]` The system program                     (read-only).
+/// 14. `[]` The state merkle tree account
+/// 15. `[]` The queue account
 ///
 pub fn process_instruction(
     program_id: &Pubkey,
@@ -44,8 +49,7 @@ pub fn process_instruction(
     let account_info_iter = &mut accounts.iter();
     let claimant_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let fee_payer_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let mint_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // owner of locked tokens, tied to mint, claimant, and unlock slot:
+    // Owner of locked tokens, tied to (mint, claimant, unlock_slot):
     let associated_airdrop_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     // Default protocol accounts required for cpi:
     let ctoken_cpi_authority_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
@@ -55,32 +59,35 @@ pub fn process_instruction(
     let account_compression_authority_info: &AccountInfo<'_> =
         next_account_info(account_info_iter)?;
     let account_compression_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let self_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // one of the mint's protocol-owned token pools:
+    let ctoken_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+    // One of the mint's protocol-owned token pools:
     let token_pool_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // can be any spl token account:
+    // Can be any SPL token account:
     let decompress_destination_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let token_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-
-    // Merkle context
+    // Merkle context of compressed token account.
     let state_tree_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let queue_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
 
     // CHECK:
     if !claimant_info.is_signer {
-        msg!("Claimant must be a signer.");
+        msg!("Claimant must be a signer: {:?}", claimant_info.key.log());
         return Err(ProgramError::MissingRequiredSignature);
     }
-    if !fee_payer_info.is_signer {
-        msg!("Fee payer must be a signer.");
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
     // CHECK:
-    if associated_airdrop_pda_info.lamports() > 0 || associated_airdrop_pda_info.data_len() > 0 {
-        msg!("Airdrop PDA must be uninitialized.");
-        return Err(ProgramError::AccountAlreadyInitialized);
+    if !fee_payer_info.is_signer {
+        msg!("Fee payer must be a signer: {:?}", fee_payer_info.key.log());
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    // CHECK:
+    if ctoken_program_info.key != &CTOKEN_PROGRAM_ID {
+        msg!(
+            "Invalid compressed token program. Expected: {:?}. Found: {:?}",
+            CTOKEN_PROGRAM_ID.log(),
+            ctoken_program_info.key.log()
+        );
+        return Err(ProgramError::InvalidArgument);
     }
 
     let light_context_accounts = CompressedTokenDecompressCpiAccounts {
@@ -92,7 +99,7 @@ pub fn process_instruction(
         noop_program: noop_program_info.clone(),
         account_compression_authority: account_compression_authority_info.clone(),
         account_compression_program: account_compression_program_info.clone(),
-        self_program: self_program_info.clone(),
+        self_program: ctoken_program_info.clone(),
         token_pool_pda: token_pool_pda_info.clone(),
         decompress_destination: decompress_destination_info.clone(),
         token_program: token_program_info.clone(),
@@ -105,21 +112,13 @@ pub fn process_instruction(
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
     let proof = &data.proof;
-    let root_index = data.root_index;
-    let merkle_context = data.merkle_context;
-    let amount = data.amount;
+    let mint = data.mint;
     let unlock_slot = data.unlock_slot;
     let bump_seed = data.bump_seed;
 
-    // get the compressed token account
-    let compressed_token_account = InputTokenDataWithContext {
-        amount,
-        delegate_index: None,
-        merkle_context,
-        root_index,
-        lamports: None,
-        tlv: None,
-    };
+    // Get the compressed token account from instruction_data
+    let ctoken_account =
+        get_compressed_token_account_info(data.merkle_context, data.root_index, data.amount, None);
 
     // Get current slot
     let current_slot = Clock::get()?.slot;
@@ -137,31 +136,13 @@ pub fn process_instruction(
     check_pda_and_decompress_token(
         program_id,
         light_context_accounts,
-        compressed_token_account,
+        ctoken_account,
         proof,
         claimant_info.clone(),
-        mint_info.clone(),
+        mint,
         unlock_slot,
         bump_seed,
     )
-}
-
-/// Get a existing compressed token account with the given amount, merkle context, and root index.
-pub fn compressed_token_account_mut(
-    amount: u64,
-    merkle_context: PackedMerkleContext,
-    delegate_index: Option<u8>,
-    root_index: u16,
-    lamports: Option<u64>,
-) -> InputTokenDataWithContext {
-    InputTokenDataWithContext {
-        amount,
-        delegate_index,
-        merkle_context,
-        root_index,
-        lamports,
-        tlv: None,
-    }
 }
 
 /// CHECK:
@@ -178,13 +159,13 @@ fn check_pda_and_decompress_token<'a>(
     compressed_token_account: InputTokenDataWithContext,
     proof: &CompressedProof,
     claimant: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
+    mint: Pubkey,
     slot: u64,
     bump_seed: u8,
 ) -> ProgramResult {
     let claimant_bytes = claimant.key.to_bytes();
     let slot_bytes = slot.to_le_bytes();
-    let mint_bytes = mint.key.to_bytes();
+    let mint_bytes = mint.to_bytes();
 
     let seeds = &[
         &claimant_bytes[..32],
@@ -195,11 +176,12 @@ fn check_pda_and_decompress_token<'a>(
 
     check_claim_pda(seeds, claim_program, light_cpi_accounts.authority.key)?;
 
-    let instruction = cpi::instruction::decompress_token_instruction(
-        mint.key,
+    let instruction = cpi::instruction::decompress(
+        &mint,
         vec![compressed_token_account],
         proof,
         &light_cpi_accounts,
+        None,
     )?;
 
     let signers_seeds: &[&[&[u8]]] = &[&seeds[..]];
@@ -250,13 +232,14 @@ fn check_claim_pda(
 
 #[derive(BorshDeserialize)]
 struct InstructionData {
-    // validity proof info
+    // Validity proof info
     proof: CompressedProof,
     root_index: u16,
-    // compressed token account info
+    // Compressed token account info
     merkle_context: PackedMerkleContext,
     amount: u64,
-    // inputs
+    mint: Pubkey,
+    // Inputs
     unlock_slot: u64,
     bump_seed: u8,
 }
