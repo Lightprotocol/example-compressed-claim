@@ -12,7 +12,6 @@ fn process_instruction(
 }
 
 mod error;
-///! Processor
 pub mod processor;
 pub use solana_program;
 

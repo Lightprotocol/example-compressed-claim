@@ -141,12 +141,12 @@ pub fn process_instruction(
 ///
 /// If check passes, decompresses the compressed token account to destination account.
 #[allow(clippy::too_many_arguments)]
-fn check_pda_and_decompress_token<'a>(
+fn check_pda_and_decompress_token(
     claim_program: &Pubkey,
     light_cpi_accounts: CompressedTokenDecompressCpiAccounts,
     compressed_token_account: InputTokenDataWithContext,
     proof: &Option<CompressedProof>,
-    claimant: AccountInfo<'a>,
+    claimant: AccountInfo<'_>,
     mint: Pubkey,
     slot: u64,
     bump_seed: u8,
