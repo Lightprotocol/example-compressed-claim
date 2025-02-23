@@ -110,8 +110,6 @@ pub fn process_instruction(
 
     let data = InstructionData::try_from_slice(instruction_data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
-
-    let proof = &data.proof;
     let mint = data.mint;
     let unlock_slot = data.unlock_slot;
     let bump_seed = data.bump_seed;
@@ -137,7 +135,7 @@ pub fn process_instruction(
         program_id,
         light_context_accounts,
         ctoken_account,
-        proof,
+        &data.proof,
         claimant_info.clone(),
         mint,
         unlock_slot,
@@ -157,7 +155,7 @@ fn check_pda_and_decompress_token<'a>(
     claim_program: &Pubkey,
     light_cpi_accounts: CompressedTokenDecompressCpiAccounts,
     compressed_token_account: InputTokenDataWithContext,
-    proof: &CompressedProof,
+    proof: &Option<CompressedProof>,
     claimant: AccountInfo<'a>,
     mint: Pubkey,
     slot: u64,
@@ -233,7 +231,7 @@ fn check_claim_pda(
 #[derive(BorshDeserialize)]
 struct InstructionData {
     // Validity proof info
-    proof: CompressedProof,
+    proof: Option<CompressedProof>,
     root_index: u16,
     // Compressed token account info
     merkle_context: PackedMerkleContext,

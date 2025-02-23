@@ -16,8 +16,8 @@ default = ["cpi"]
 
 [dependencies]
 solana-program = ">=1.18.11,<2"
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "6a33424e6", default-features = false }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "6a33424e6", default-features = false }
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "decd243b8", default-features = false }
+light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "decd243b8", default-features = false }
 thiserror = "2.0.11"
 borsh = "0.10.0"
 

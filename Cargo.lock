@@ -2488,7 +2488,7 @@ dependencies = [
 [[package]]
 name = "light-compressed-account"
 version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?rev=6a33424e6#6a33424e6b7e5fa0a542e6709c55a3318956ca33"
+source = "git+https://github.com/lightprotocol/light-protocol?rev=decd243b8#decd243b88206c7cbea4e365d2f0fa0e11c828b6"
 dependencies = [
  "anchor-lang",
  "anyhow",
@@ -2520,7 +2520,7 @@ dependencies = [
 [[package]]
 name = "light-compressed-token-sdk"
 version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?rev=6a33424e6#6a33424e6b7e5fa0a542e6709c55a3318956ca33"
+source = "git+https://github.com/lightprotocol/light-protocol?rev=decd243b8#decd243b88206c7cbea4e365d2f0fa0e11c828b6"
 dependencies = [
  "anchor-lang",
  "borsh 0.10.3",
@@ -2533,7 +2533,7 @@ dependencies = [
 [[package]]
 name = "light-hasher"
 version = "1.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?rev=6a33424e6#6a33424e6b7e5fa0a542e6709c55a3318956ca33"
+source = "git+https://github.com/lightprotocol/light-protocol?rev=decd243b8#decd243b88206c7cbea4e365d2f0fa0e11c828b6"
 dependencies = [
  "ark-bn254 0.5.0",
  "light-poseidon 0.3.0",
@@ -2570,7 +2570,7 @@ dependencies = [
 [[package]]
 name = "light-zero-copy"
 version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?rev=6a33424e6#6a33424e6b7e5fa0a542e6709c55a3318956ca33"
+source = "git+https://github.com/lightprotocol/light-protocol?rev=decd243b8#decd243b88206c7cbea4e365d2f0fa0e11c828b6"
 dependencies = [
  "thiserror 2.0.11",
  "zerocopy 0.8.20",
