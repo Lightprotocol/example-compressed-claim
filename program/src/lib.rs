@@ -1,0 +1,49 @@
+#![deny(missing_docs)]
+
+//! A program that accepts a string of encoded characters and verifies that it
+//! parses, while verifying and logging signers. Currently handles UTF-8
+//! characters.
+
+mod entrypoint;
+mod error;
+pub mod processor;
+
+// Export current sdk types for downstream users building with a different sdk
+// version
+pub use solana_program;
+use solana_program::{
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+};
+
+solana_program::declare_id!("7UHB3CfWv7SugNhfdyP7aeZJPMjnpd9zJ7xYkHozB3Na");
+
+/// Build a claim_and_decompress instruction
+///
+/// Accounts expected by this instruction:
+///
+// pub fn build_claim_and_decompress(slot: u64, signer_pubkeys: &[&Pubkey]) -> Instruction {
+//     Instruction {
+//         program_id: id(),
+//         accounts: signer_pubkeys
+//             .iter()
+//             .map(|&pubkey| AccountMeta::new_readonly(*pubkey, true))
+//             .collect(),
+//         data: memo.to_vec(),
+//     }
+// }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_memo() {
+        let signer_pubkey = Pubkey::new_unique();
+        let memo = "🐆".as_bytes();
+        let instruction = build_memo(memo, &[&signer_pubkey]);
+        assert_eq!(memo, instruction.data);
+        assert_eq!(instruction.accounts.len(), 1);
+        assert_eq!(instruction.accounts[0].pubkey, signer_pubkey);
+    }
+}

@@ -1,0 +1,33 @@
+[package]
+name = "light-compressed-claim"
+version = "0.1.0"
+description = "Light Protocol Compressed Claim"
+authors = ["Light Protocol maintainers <info@lightprotocol.io>"]
+repository = "https://github.com/lightprotocol/light-protocol"
+license = "Apache-2.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+test-sbf = []
+cpi = []
+
+default = ["cpi"]
+
+[dependencies]
+solana-program = ">=1.18.11,<=2"
+# light-compressed-account-anchorless = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen/sdk-anchorless", default-features = false }
+light-compressed-account-anchorless = { path = "../../light-protocol/program-libs/compressed-account-anchorless", default-features = false }
+thiserror = "2.0.11"
+borsh = "0.10.0"
+spl-token-metadata-interface = "0.5.1"
+
+[dev-dependencies]
+solana-program-test = ">=1.18.11,<=2"
+solana-sdk = ">=1.18.11,<=2"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
