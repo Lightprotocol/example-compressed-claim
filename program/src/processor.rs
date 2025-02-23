@@ -49,9 +49,7 @@ pub fn process_instruction(
     let account_info_iter = &mut accounts.iter();
     let claimant_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let fee_payer_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // Owner of locked tokens, tied to (mint, claimant, unlock_slot):
     let associated_airdrop_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // Default protocol accounts required for cpi:
     let ctoken_cpi_authority_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let light_system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let registered_program_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
@@ -60,13 +58,10 @@ pub fn process_instruction(
         next_account_info(account_info_iter)?;
     let account_compression_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let ctoken_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // One of the mint's protocol-owned token pools:
     let token_pool_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // Can be any SPL token account:
     let decompress_destination_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let token_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    // Merkle context of compressed token account.
     let state_tree_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let queue_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
 
@@ -90,7 +85,26 @@ pub fn process_instruction(
         return Err(ProgramError::InvalidArgument);
     }
 
-    let light_context_accounts = CompressedTokenDecompressCpiAccounts {
+    let data = InstructionData::try_from_slice(instruction_data)
+        .map_err(|_| ProgramError::InvalidInstructionData)?;
+    let mint = data.mint;
+    let unlock_slot = data.unlock_slot;
+    let bump_seed = data.bump_seed;
+    let ctoken_account =
+        get_compressed_token_account_info(data.merkle_context, data.root_index, data.amount, None);
+
+    // CHECK:
+    let current_slot = Clock::get()?.slot;
+    if current_slot < unlock_slot {
+        msg!(
+            "Tokens are still locked: current slot ({}) is less than unlock slot ({}).",
+            current_slot,
+            unlock_slot
+        );
+        return Err(ClaimError::TokensLocked.into());
+    }
+
+    let light_cpi_accounts = CompressedTokenDecompressCpiAccounts {
         fee_payer: fee_payer_info.clone(),
         authority: associated_airdrop_pda_info.clone(),
         cpi_authority_pda: ctoken_cpi_authority_pda_info.clone(),
@@ -107,33 +121,9 @@ pub fn process_instruction(
         state_merkle_tree: state_tree_info.clone(),
         queue: queue_info.clone(),
     };
-
-    let data = InstructionData::try_from_slice(instruction_data)
-        .map_err(|_| ProgramError::InvalidInstructionData)?;
-    let mint = data.mint;
-    let unlock_slot = data.unlock_slot;
-    let bump_seed = data.bump_seed;
-
-    // Get the compressed token account from instruction_data
-    let ctoken_account =
-        get_compressed_token_account_info(data.merkle_context, data.root_index, data.amount, None);
-
-    // Get current slot
-    let current_slot = Clock::get()?.slot;
-
-    // CHECK:
-    if current_slot < unlock_slot {
-        msg!(
-            "Tokens are still locked: current slot ({}) is less than unlock slot ({}).",
-            current_slot,
-            unlock_slot
-        );
-        return Err(ClaimError::TokensLocked.into());
-    }
-
     check_pda_and_decompress_token(
         program_id,
-        light_context_accounts,
+        light_cpi_accounts,
         ctoken_account,
         &data.proof,
         claimant_info.clone(),
