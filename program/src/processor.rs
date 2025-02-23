@@ -17,7 +17,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-/// Processes the "claim_and_decompress" instruction
+/// Processes claim instruction
 ///
 /// Expected Accounts:
 /// 0. `[signer]` The claimant's account.
@@ -63,6 +63,10 @@ pub fn process_instruction(
     let token_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
     let system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
 
+    // Merkle context
+    let state_tree_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+    let queue_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+
     // CHECK:
     if !claimant_info.is_signer {
         msg!("Claimant must be a signer.");
@@ -93,6 +97,8 @@ pub fn process_instruction(
         decompress_destination: decompress_destination_info.clone(),
         token_program: token_program_info.clone(),
         system_program: system_program_info.clone(),
+        state_merkle_tree: state_tree_info.clone(),
+        queue: queue_info.clone(),
     };
 
     let data = InstructionData::try_from_slice(instruction_data)
@@ -131,13 +137,31 @@ pub fn process_instruction(
     check_pda_and_decompress_token(
         program_id,
         light_context_accounts,
-        vec![compressed_token_account],
+        compressed_token_account,
         proof,
         claimant_info.clone(),
         mint_info.clone(),
         unlock_slot,
         bump_seed,
     )
+}
+
+/// Get a existing compressed token account with the given amount, merkle context, and root index.
+pub fn compressed_token_account_mut(
+    amount: u64,
+    merkle_context: PackedMerkleContext,
+    delegate_index: Option<u8>,
+    root_index: u16,
+    lamports: Option<u64>,
+) -> InputTokenDataWithContext {
+    InputTokenDataWithContext {
+        amount,
+        delegate_index,
+        merkle_context,
+        root_index,
+        lamports,
+        tlv: None,
+    }
 }
 
 /// CHECK:
@@ -151,7 +175,7 @@ pub fn process_instruction(
 fn check_pda_and_decompress_token<'a>(
     claim_program: &Pubkey,
     light_cpi_accounts: CompressedTokenDecompressCpiAccounts,
-    compressed_token_accounts: Vec<InputTokenDataWithContext>,
+    compressed_token_account: InputTokenDataWithContext,
     proof: &CompressedProof,
     claimant: AccountInfo<'a>,
     mint: AccountInfo<'a>,
@@ -173,7 +197,7 @@ fn check_pda_and_decompress_token<'a>(
 
     let instruction = cpi::instruction::decompress_token_instruction(
         mint.key,
-        compressed_token_accounts,
+        vec![compressed_token_account],
         proof,
         &light_cpi_accounts,
     )?;
@@ -195,6 +219,8 @@ fn check_pda_and_decompress_token<'a>(
             light_cpi_accounts.decompress_destination,
             light_cpi_accounts.token_program,
             light_cpi_accounts.system_program,
+            light_cpi_accounts.state_merkle_tree,
+            light_cpi_accounts.queue,
         ][..],
         signers_seeds,
     )?;
