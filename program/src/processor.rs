@@ -87,13 +87,12 @@ pub fn process_instruction(
 
     let data = InstructionData::try_from_slice(instruction_data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
-    let mint = data.mint;
-    let unlock_slot = data.unlock_slot;
-    let bump_seed = data.bump_seed;
+
     let ctoken_account =
         get_compressed_token_account_info(data.merkle_context, data.root_index, data.amount, None);
 
     // CHECK:
+    let unlock_slot = data.unlock_slot;
     let current_slot = Clock::get()?.slot;
     if current_slot < unlock_slot {
         msg!(
@@ -127,9 +126,9 @@ pub fn process_instruction(
         ctoken_account,
         &data.proof,
         claimant_info.clone(),
-        mint,
+        data.mint,
         unlock_slot,
-        bump_seed,
+        data.bump_seed,
     )
 }
 
