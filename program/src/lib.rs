@@ -1,26 +1,21 @@
 #![deny(missing_docs)]
 
-//! A program that accepts a string of encoded characters and verifies that it
-//! parses, while verifying and logging signers. Currently handles UTF-8
-//! characters.
-
+//! A program that takes an "AATA (associated airdrop token account)", verifies
+//! that a signer is eligible to claim the account, and decompresses it.
+//!
+//! An "AATA" is a compressed token account that is owned by this program and is
+//! derived from the respective mint, claimant, and unlock slot.
 mod entrypoint;
 mod error;
+/// Processes the "claim_and_decompress" instruction. No Mapping used.
 pub mod processor;
 
-// Export current sdk types for downstream users building with a different sdk
-// version
 pub use solana_program;
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-};
 
 solana_program::declare_id!("7UHB3CfWv7SugNhfdyP7aeZJPMjnpd9zJ7xYkHozB3Na");
 
+// TODO: add Instruction serde unit test.
 /// Build a claim_and_decompress instruction
-///
-/// Accounts expected by this instruction:
 ///
 // pub fn build_claim_and_decompress(slot: u64, signer_pubkeys: &[&Pubkey]) -> Instruction {
 //     Instruction {
@@ -29,21 +24,11 @@ solana_program::declare_id!("7UHB3CfWv7SugNhfdyP7aeZJPMjnpd9zJ7xYkHozB3Na");
 //             .iter()
 //             .map(|&pubkey| AccountMeta::new_readonly(*pubkey, true))
 //             .collect(),
-//         data: memo.to_vec(),
+//         data: data,
 //     }
 // }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_build_memo() {
-        let signer_pubkey = Pubkey::new_unique();
-        let memo = "🐆".as_bytes();
-        let instruction = build_memo(memo, &[&signer_pubkey]);
-        assert_eq!(memo, instruction.data);
-        assert_eq!(instruction.accounts.len(), 1);
-        assert_eq!(instruction.accounts[0].pubkey, signer_pubkey);
-    }
 }

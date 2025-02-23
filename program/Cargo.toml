@@ -15,12 +15,10 @@ cpi = []
 default = ["cpi"]
 
 [dependencies]
-solana-program = ">=1.18.11,<=2"
-# light-compressed-account-anchorless = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen/sdk-anchorless", default-features = false }
+solana-program = ">=1.18.11,<2"
 light-compressed-account-anchorless = { path = "../../light-protocol/program-libs/compressed-account-anchorless", default-features = false }
 thiserror = "2.0.11"
 borsh = "0.10.0"
-spl-token-metadata-interface = "0.5.1"
 
 [dev-dependencies]
 solana-program-test = ">=1.18.11,<=2"
