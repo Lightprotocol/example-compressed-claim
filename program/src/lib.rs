@@ -1,9 +1,12 @@
 //! Program entrypoint
 #![cfg(not(feature = "no-entrypoint"))]
-use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, pubkey::Pubkey};
+use solana_program::{
+    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, pubkey::Pubkey,
+};
 
-solana_program::entrypoint!(process_instruction);
-fn process_instruction(
+entrypoint!(process_instruction);
+
+pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
@@ -12,6 +15,7 @@ fn process_instruction(
 }
 
 mod error;
+pub mod instruction;
 pub mod processor;
 pub use solana_program;
 

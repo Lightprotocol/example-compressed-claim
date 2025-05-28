@@ -1,69 +1,82 @@
 use crate::error::ClaimError;
+use crate::instruction::ClaimProgramInstruction;
 use borsh::BorshDeserialize;
-use light_compressed_account::{
-    compressed_account::PackedMerkleContext, instruction_data::compressed_proof::CompressedProof,
-};
+use light_compressed_account::compressed_account::PackedMerkleContext;
+use light_compressed_account::instruction_data::compressed_proof::CompressedProof;
 use light_compressed_token_sdk::cpi::account_info::get_compressed_token_account_info;
 use light_compressed_token_sdk::{
     cpi, cpi::accounts::CompressedTokenDecompressCpiAccounts, state::InputTokenDataWithContext,
 };
-use solana_program::program::invoke_signed;
-use solana_program::pubkey;
 use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    clock::Clock,
-    entrypoint::ProgramResult,
-    msg,
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    sysvar::Sysvar,
+    account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
+    program::invoke_signed, program_error::ProgramError, pubkey, pubkey::Pubkey, sysvar::Sysvar,
 };
 
 const CTOKEN_PROGRAM_ID: Pubkey = pubkey!("cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m");
 
-/// Processes claim instruction
-///
-/// Expected Accounts:
-/// 0. `[signer]` The claimant's account.
-/// 1. `[signer]` The fee payer account.
-/// 2. `[]` The associated airdrop pda.
-/// 3. `[]` The ctoken cpi authority pda.
-/// 4. `[]` The light system program pda.
-/// 5. `[]` The registered program pda              (read-only).
-/// 6. `[]` The noop program pda                    (read-only).
-/// 7. `[]` The account compression authority pda   (read-only).
-/// 8. `[]` The account compression program pda     (read-only).
-/// 9. `[]` The Compressed Token program            (read-only).
-/// 10. `[]` The token pool pda                     
-/// 11. `[]` The decompress destination account   
-/// 12. `[]` The token program                      (read-only).
-/// 13. `[]` The system program                     (read-only).
-/// 14. `[]` The state merkle tree account
-/// 15. `[]` The queue account
-///
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    let account_info_iter = &mut accounts.iter();
-    let claimant_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let fee_payer_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let associated_airdrop_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let ctoken_cpi_authority_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let light_system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let registered_program_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let noop_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let account_compression_authority_info: &AccountInfo<'_> =
-        next_account_info(account_info_iter)?;
-    let account_compression_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let ctoken_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let token_pool_pda_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let decompress_destination_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let token_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let state_tree_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-    let queue_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+    let instruction = ClaimProgramInstruction::try_from_slice(instruction_data)
+        .map_err(|_| ProgramError::InvalidInstructionData)?;
+    match instruction {
+        ClaimProgramInstruction::Claim {
+            proof,
+            root_index,
+            merkle_context,
+            amount,
+            mint,
+            unlock_slot,
+            bump_seed,
+        } => process_claim(
+            program_id,
+            accounts,
+            proof,
+            root_index,
+            merkle_context,
+            amount,
+            mint,
+            unlock_slot,
+            bump_seed,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn process_claim(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    proof: Option<CompressedProof>,
+    root_index: u16,
+    merkle_context: PackedMerkleContext,
+    amount: u64,
+    mint: Pubkey,
+    unlock_slot: u64,
+    bump_seed: u8,
+) -> ProgramResult {
+    let claimant_info = &accounts[0];
+    let fee_payer_info = &accounts[1];
+    let associated_airdrop_pda_info = &accounts[2];
+    let ctoken_cpi_authority_pda_info = &accounts[3];
+    let light_system_program_info = &accounts[4];
+    let registered_program_pda_info = &accounts[5];
+    let noop_program_info = &accounts[6];
+    let account_compression_authority_info = &accounts[7];
+    let account_compression_program_info = &accounts[8];
+    let ctoken_program_info = &accounts[9];
+    let token_pool_pda_info = &accounts[10];
+    let decompress_destination_info = &accounts[11];
+    let token_program_info = &accounts[12];
+    let system_program_info = &accounts[13];
+    let state_tree_info = &accounts[14];
+    let queue_info = &accounts[15];
+
+    if accounts.len() != 16 {
+        msg!("Expected 16 accounts, got {}", accounts.len());
+        return Err(ProgramError::NotEnoughAccountKeys);
+    }
 
     // CHECK:
     if !claimant_info.is_signer {
@@ -85,14 +98,10 @@ pub fn process_instruction(
         return Err(ProgramError::InvalidArgument);
     }
 
-    let data = InstructionData::try_from_slice(instruction_data)
-        .map_err(|_| ProgramError::InvalidInstructionData)?;
-
     let ctoken_account =
-        get_compressed_token_account_info(data.merkle_context, data.root_index, data.amount, None);
+        get_compressed_token_account_info(merkle_context, root_index, amount, None);
 
     // CHECK:
-    let unlock_slot = data.unlock_slot;
     let current_slot = Clock::get()?.slot;
     if current_slot < unlock_slot {
         msg!(
@@ -124,21 +133,14 @@ pub fn process_instruction(
         program_id,
         light_cpi_accounts,
         ctoken_account,
-        &data.proof,
+        &proof,
         claimant_info.clone(),
-        data.mint,
+        mint,
         unlock_slot,
-        data.bump_seed,
+        bump_seed,
     )
 }
 
-/// CHECK:
-/// 1. PDA derived from claimant.
-/// 2. PDA derived from mint.
-/// 3. PDA owned by claim_program.
-/// 4. PDA derived from slot.
-///
-/// If check passes, decompresses the compressed token account to destination account.
 #[allow(clippy::too_many_arguments)]
 fn check_pda_and_decompress_token(
     claim_program: &Pubkey,
@@ -196,7 +198,6 @@ fn check_pda_and_decompress_token(
     Ok(())
 }
 
-/// CHECK: associated_airdrop_pda must be derived from claimant, mint, and slot.
 fn check_claim_pda(
     seeds: &[&[u8]],
     claim_program: &Pubkey,
@@ -215,18 +216,4 @@ fn check_claim_pda(
     }
 
     Ok(())
-}
-
-#[derive(BorshDeserialize)]
-struct InstructionData {
-    // Validity proof info
-    proof: Option<CompressedProof>,
-    root_index: u16,
-    // Compressed token account info
-    merkle_context: PackedMerkleContext,
-    amount: u64,
-    mint: Pubkey,
-    // Inputs
-    unlock_slot: u64,
-    bump_seed: u8,
 }
