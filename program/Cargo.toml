@@ -15,19 +15,22 @@ cpi = []
 default = ["cpi"]
 
 [dependencies]
-solana-program = ">=1.18.11,<2"
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "decd243b8", default-features = false }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "decd243b8", default-features = false }
+solana-program = "2.2.1"
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "8a2719579ad574a5bc451c0d1149ee5e1df4e518", default-features = false }
+light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "8a2719579ad574a5bc451c0d1149ee5e1df4e518", default-features = false }
 thiserror = "2.0.11"
 borsh = "0.10.0"
-pinocchio = "0.7.1"
 
 [dev-dependencies]
-solana-program-test = ">=1.18.11,<2"
-solana-sdk = ">=1.18.11,<2"
+light-program-test = { git = "https://github.com/Lightprotocol/light-protocol", rev = "17bdd0dab55264b5aabc5694babf4ab22447f575", features = ["v2"] }
+solana-program-test = "2.2.1"
+light-client = { git = "https://github.com/Lightprotocol/light-protocol", rev = "17bdd0dab55264b5aabc5694babf4ab22447f575" }
+solana-sdk = "2.2.1"
 
 [lib]
 crate-type = ["cdylib", "lib"]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
+
+
