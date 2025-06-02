@@ -10,3 +10,6 @@ solana = "1.18.18"
 [workspace.metadata.toolchains]
 format = "1.78.0"
 lint = "1.78.0"
+
+[patch.crates-io]
+light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4" }
