@@ -28,7 +28,7 @@ solana-program-test = "2.2.1"
 light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
 solana-sdk = "2.2.1"
 spl-token = "5.0.0"
-
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
 
 [lib]
 crate-type = ["cdylib", "lib"]

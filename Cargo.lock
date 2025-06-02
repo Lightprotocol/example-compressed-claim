@@ -2941,6 +2941,7 @@ dependencies = [
  "light-compressed-token-client",
  "light-compressed-token-sdk",
  "light-program-test",
+ "light-sdk",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
