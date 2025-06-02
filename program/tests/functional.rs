@@ -1,6 +1,7 @@
 #![cfg(feature = "test-sbf")]
 
-use light_compressed_account::compressed_account::PackedMerkleContext;
+use light_compressed_account::compressed_account::{pack_merkle_context, PackedMerkleContext};
+
 use light_compressed_account::constants::ACCOUNT_COMPRESSION_PROGRAM_ID;
 use light_compressed_claim::instruction::{build_claim_and_decompress_instruction, ClaimAccounts};
 use light_compressed_token_client::instructions::compress;

@@ -126,8 +126,8 @@ fn process_claim(
         decompress_destination: decompress_destination_info.clone(),
         token_program: token_program_info.clone(),
         system_program: system_program_info.clone(),
-        state_merkle_tree: state_tree_info.clone(),
-        queue: queue_info.clone(),
+        state_merkle_tree: state_tree_info.clone(), // TODO: should use from packedmerklecontext (if we make use of this...)
+        queue: queue_info.clone(),                  // ...
     };
     check_pda_and_decompress_token(
         program_id,
