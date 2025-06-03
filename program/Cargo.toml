@@ -16,19 +16,20 @@ default = ["cpi"]
 
 [dependencies]
 solana-program = "2.2.1"
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
+light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
 thiserror = "2.0.11"
 borsh = "0.10.0"
 
 [dev-dependencies]
-light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
+light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
 solana-program-test = "2.2.1"
-light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
+light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
 solana-sdk = "2.2.1"
 spl-token = "5.0.0"
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "51b0a9a3ec36306b17dc05f32fd5936cdfccadd4", default-features = false }
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
+light-compressed-token = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
 
 [lib]
 crate-type = ["cdylib", "lib"]

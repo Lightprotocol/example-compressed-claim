@@ -1,9 +1,11 @@
 #![cfg(feature = "test-sbf")]
 
+use light_client::indexer::{GetCompressedTokenAccountsByOwnerOrDelegateOptions, IndexerRpcConfig};
 use light_compressed_account::compressed_account::{pack_merkle_context, PackedMerkleContext};
 
 use light_compressed_account::constants::ACCOUNT_COMPRESSION_PROGRAM_ID;
 use light_compressed_claim::instruction::{build_claim_and_decompress_instruction, ClaimAccounts};
+use light_compressed_token::mint_sdk::create_create_token_pool_instruction;
 use light_compressed_token_client::instructions::compress;
 use light_compressed_token_client::{
     get_cpi_authority_pda, get_token_pool_pda, LIGHT_SYSTEM_PROGRAM_ID,
@@ -38,6 +40,15 @@ async fn test_claim_and_decompress() {
 
     let (mint, token_account, owner) = setup_spl_token_account(&mut rpc).await;
 
+    assert_eq!(payer.pubkey(), owner.pubkey(), "payer must be owner");
+    // Setup token pool.
+    let create_token_pool_ix =
+        create_create_token_pool_instruction(&payer.pubkey(), &mint.pubkey(), false);
+
+    rpc.create_and_send_transaction(&[create_token_pool_ix], &payer.pubkey(), &[&payer, &owner])
+        .await
+        .unwrap();
+
     let unlock_slot = 1;
     let amount = 2;
 
@@ -58,25 +69,32 @@ async fn test_claim_and_decompress() {
         .await
         .unwrap();
 
+    let options = Some(GetCompressedTokenAccountsByOwnerOrDelegateOptions {
+        mint: Some(mint.pubkey()),
+        cursor: None,
+        limit: None,
+    });
+
     let compressed_token_accounts = rpc
-        .get_compressed_token_accounts_by_owner(&claimant_pda, Some(mint.pubkey()))
+        .get_compressed_token_accounts_by_owner(&claimant_pda, options, None)
         .await
         .unwrap();
 
-    assert_eq!(compressed_token_accounts.len(), 1);
+    println!("compressed_token_accounts: {:?}", compressed_token_accounts);
+    assert_eq!(compressed_token_accounts.value.items.len(), 1);
 
-    let compressed_token_account = compressed_token_accounts[0].clone();
+    let compressed_token_account: light_client::indexer::TokenAccount =
+        compressed_token_accounts.value.items[0].clone();
 
     let proof = rpc
         .indexer()
         .unwrap()
-        .get_validity_proof(
-            vec![compressed_token_account.compressed_account.hash().unwrap()],
-            vec![],
-        )
+        .get_validity_proof(vec![compressed_token_account.account.hash], vec![], None)
         .await
         .unwrap();
 
+    println!("proof: {:?}", proof);
+    return;
     let token_pool_pda = get_token_pool_pda(&mint.pubkey());
 
     // TODO: provide helper.
@@ -105,8 +123,8 @@ async fn test_claim_and_decompress() {
         queue,
     };
 
-    let root_index = proof.root_indices[0];
-    let merkle_context = compressed_token_account.compressed_account.merkle_context;
+    let root_index = proof.value.get_root_indices()[0].unwrap();
+    let merkle_context = compressed_token_account.account.merkle_context;
 
     // let mut remaining_accounts = RemainingAccount::default();
     // let packed_merkle_context = PackedMerkleContext(merkle_context);
@@ -154,7 +172,7 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
     let payer = rpc.get_payer().insecure_clone();
 
     let mint_account = Keypair::new();
-    let owner = Keypair::new();
+    let owner = payer.insecure_clone();
     let token_program = &id();
     let rent = rpc.context.banks_client.get_rent().await.unwrap();
     let mint_rent = rent.minimum_balance(Mint::LEN);
@@ -196,12 +214,11 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
         token_program,
     );
 
-    let my_account = Keypair::new();
     let initialize_account_ix = instruction::initialize_account(
         token_program,
         &token_account.pubkey(),
         &mint_account.pubkey(),
-        &my_account.pubkey(),
+        &owner.pubkey(),
     )
     .unwrap();
 
@@ -244,6 +261,15 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
         mint_amount.clone(),
         "not correct amount"
     );
+
+    assert_eq!(account_data.mint, mint_account.pubkey(), "not correct mint");
+
+    assert_eq!(
+        account_data.owner,
+        payer.pubkey(),
+        "not correct owner (payer)"
+    );
+    assert_eq!(account_data.owner, owner.pubkey(), "not correct owner");
 
     (mint_account, token_account, owner)
 }
