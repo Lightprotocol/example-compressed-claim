@@ -15,18 +15,31 @@ cpi = []
 default = ["cpi"]
 
 [dependencies]
-solana-program = ">=1.18.11,<2"
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "decd243b8", default-features = false }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "decd243b8", default-features = false }
+solana-program = "2.2.1"
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
+light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
 thiserror = "2.0.11"
 borsh = "0.10.0"
 
 [dev-dependencies]
-solana-program-test = ">=1.18.11,<2"
-solana-sdk = ">=1.18.11,<2"
+solana-sdk = "2.2.1"
+light-compressed-token = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
+light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
+solana-program-test = "2.2.1"
+light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
+
+spl-token = "5.0.0"
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
+
+[lints.rust.unexpected_cfgs]
+level = "allow"
+check-cfg = ['cfg(target_os, values("solana"))']
+
+
