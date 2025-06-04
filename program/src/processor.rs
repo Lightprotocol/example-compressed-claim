@@ -30,6 +30,7 @@ pub fn process_instruction(
             root_index,
             merkle_context,
             amount,
+            lamports,
             mint,
             unlock_slot,
             bump_seed,
@@ -40,6 +41,7 @@ pub fn process_instruction(
             root_index,
             merkle_context,
             amount,
+            lamports,
             mint,
             unlock_slot,
             bump_seed,
@@ -55,6 +57,7 @@ fn process_claim(
     root_index: u16,
     merkle_context: PackedMerkleContext,
     amount: u64,
+    lamports: Option<u64>,
     mint: Pubkey,
     unlock_slot: u64,
     bump_seed: u8,
@@ -101,7 +104,7 @@ fn process_claim(
     }
 
     let ctoken_account =
-        get_compressed_token_account_info(merkle_context, root_index, amount, None);
+        get_compressed_token_account_info(merkle_context, root_index, amount, lamports);
 
     // CHECK:
     let current_slot = Clock::get()?.slot;

@@ -1,10 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use light_compressed_account::compressed_account::PackedMerkleContext;
 use light_compressed_account::instruction_data::compressed_proof::CompressedProof;
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-};
+use solana_program::pubkey::Pubkey;
+
+#[cfg(not(target_os = "solana"))]
+use solana_program::instruction::{AccountMeta, Instruction};
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum ClaimProgramInstruction {
@@ -13,12 +13,14 @@ pub enum ClaimProgramInstruction {
         root_index: u16,
         merkle_context: PackedMerkleContext,
         amount: u64,
+        lamports: Option<u64>,
         mint: Pubkey,
         unlock_slot: u64,
         bump_seed: u8,
     },
 }
 
+#[cfg(not(target_os = "solana"))]
 #[derive(Debug)]
 pub struct ClaimAccounts {
     pub claimant: Pubkey,
@@ -59,13 +61,15 @@ pub struct ClaimAccounts {
 ///  13. `[]` System program
 ///  14. `[writable]` State tree
 ///  15. `[writable]` Queue
-
+#[cfg(not(target_os = "solana"))]
+#[allow(clippy::too_many_arguments)]
 pub fn build_claim_and_decompress_instruction(
     accounts: &ClaimAccounts,
     proof: Option<CompressedProof>,
     root_index: u16,
     merkle_context: PackedMerkleContext,
     amount: u64,
+    lamports: Option<u64>,
     mint: Pubkey,
     unlock_slot: u64,
     bump_seed: u8,
@@ -94,6 +98,7 @@ pub fn build_claim_and_decompress_instruction(
         root_index,
         merkle_context,
         amount,
+        lamports,
         mint,
         unlock_slot,
         bump_seed,
@@ -135,6 +140,7 @@ mod tests {
         let root_index = 42;
         let merkle_context = PackedMerkleContext::default();
         let amount = 1000;
+        let lamports = Some(1000);
         let unlock_slot = 12345;
         let bump_seed = 1;
 
@@ -144,6 +150,7 @@ mod tests {
             root_index,
             merkle_context,
             amount,
+            lamports,
             mint,
             unlock_slot,
             bump_seed,
@@ -162,6 +169,7 @@ mod tests {
         match deserialized {
             ClaimProgramInstruction::Claim {
                 amount: _amount,
+                lamports: _lamports,
                 mint: _mint,
                 root_index: _root_index,
                 merkle_context: _merkle_context,
@@ -170,6 +178,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(amount, _amount);
+                assert_eq!(lamports, _lamports);
                 assert_eq!(mint, _mint);
                 assert_eq!(root_index, _root_index);
                 assert_eq!(merkle_context, _merkle_context);

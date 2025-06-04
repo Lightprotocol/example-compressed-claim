@@ -124,6 +124,7 @@ async fn test_claim_and_decompress() {
         proof.value.get_root_indices()[0].unwrap(),
         packed_merkle_context,
         amount,
+        None,
         mint.pubkey(),
         unlock_slot,
         bump_seed,
