@@ -1,11 +1,14 @@
-use crate::error::ClaimError;
-use crate::instruction::ClaimProgramInstruction;
+use crate::{error::ClaimError, instruction::ClaimProgramInstruction};
 use borsh::BorshDeserialize;
-use light_compressed_account::compressed_account::PackedMerkleContext;
-use light_compressed_account::instruction_data::compressed_proof::CompressedProof;
-use light_compressed_token_sdk::cpi::account_info::get_compressed_token_account_info;
+use light_compressed_account::{
+    compressed_account::PackedMerkleContext, instruction_data::compressed_proof::CompressedProof,
+};
 use light_compressed_token_sdk::{
-    cpi, cpi::accounts::CompressedTokenDecompressCpiAccounts, state::InputTokenDataWithContext,
+    cpi::{
+        self, account_info::get_compressed_token_account_info,
+        accounts::CompressedTokenDecompressCpiAccounts,
+    },
+    state::InputTokenDataWithContext,
 };
 use solana_program::{
     account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
@@ -80,21 +83,20 @@ fn process_claim(
 
     // CHECK:
     if !claimant_info.is_signer {
-        msg!("Claimant must be a signer: {:?}", claimant_info.key.log());
+        msg!("Claimant must be a signer");
+        claimant_info.key.log();
         return Err(ProgramError::MissingRequiredSignature);
     }
     // CHECK:
     if !fee_payer_info.is_signer {
-        msg!("Fee payer must be a signer: {:?}", fee_payer_info.key.log());
+        msg!("Fee payer must be a signer");
+        fee_payer_info.key.log();
         return Err(ProgramError::MissingRequiredSignature);
     }
     // CHECK:
     if ctoken_program_info.key != &CTOKEN_PROGRAM_ID {
-        msg!(
-            "Invalid compressed token program. Expected: {:?}. Found: {:?}",
-            CTOKEN_PROGRAM_ID.log(),
-            ctoken_program_info.key.log()
-        );
+        msg!("Invalid compressed token program.",);
+        ctoken_program_info.key.log();
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -126,8 +128,8 @@ fn process_claim(
         decompress_destination: decompress_destination_info.clone(),
         token_program: token_program_info.clone(),
         system_program: system_program_info.clone(),
-        state_merkle_tree: state_tree_info.clone(), // TODO: should use from packedmerklecontext (if we make use of this...)
-        queue: queue_info.clone(),                  // ...
+        state_merkle_tree: state_tree_info.clone(),
+        queue: queue_info.clone(),
     };
     check_pda_and_decompress_token(
         program_id,

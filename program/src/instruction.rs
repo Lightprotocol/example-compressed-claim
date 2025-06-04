@@ -1,7 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use light_compressed_account::compressed_account::PackedMerkleContext;
 use light_compressed_account::instruction_data::compressed_proof::CompressedProof;
-use solana_program::pubkey::Pubkey;
+use solana_program::{
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+};
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum ClaimProgramInstruction {
@@ -15,8 +18,6 @@ pub enum ClaimProgramInstruction {
         bump_seed: u8,
     },
 }
-
-use solana_program::instruction::{AccountMeta, Instruction};
 
 #[derive(Debug)]
 pub struct ClaimAccounts {
@@ -38,7 +39,7 @@ pub struct ClaimAccounts {
     pub queue: Pubkey,
 }
 
-/// Build a claim instruction
+/// Build a claim instruction in the client.
 ///
 /// Accounts expected by this instruction:
 ///
@@ -58,6 +59,7 @@ pub struct ClaimAccounts {
 ///  13. `[]` System program
 ///  14. `[writable]` State tree
 ///  15. `[writable]` Queue
+
 pub fn build_claim_and_decompress_instruction(
     accounts: &ClaimAccounts,
     proof: Option<CompressedProof>,
@@ -79,7 +81,7 @@ pub fn build_claim_and_decompress_instruction(
         AccountMeta::new_readonly(accounts.account_compression_authority, false),
         AccountMeta::new_readonly(accounts.account_compression_program, false),
         AccountMeta::new_readonly(accounts.ctoken_program, false),
-        AccountMeta::new_readonly(accounts.token_pool_pda, false),
+        AccountMeta::new(accounts.token_pool_pda, false),
         AccountMeta::new(accounts.decompress_destination, false),
         AccountMeta::new_readonly(accounts.token_program, false),
         AccountMeta::new_readonly(accounts.system_program, false),

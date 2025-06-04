@@ -1,16 +1,14 @@
 #![cfg(feature = "test-sbf")]
 
-use light_client::indexer::{GetCompressedTokenAccountsByOwnerOrDelegateOptions, IndexerRpcConfig};
-use light_compressed_account::compressed_account::{pack_merkle_context, PackedMerkleContext};
-
+use light_client::indexer::GetCompressedTokenAccountsByOwnerOrDelegateOptions;
+use light_compressed_account::compressed_account::PackedMerkleContext;
 use light_compressed_account::constants::ACCOUNT_COMPRESSION_PROGRAM_ID;
 use light_compressed_claim::instruction::{build_claim_and_decompress_instruction, ClaimAccounts};
 use light_compressed_token::mint_sdk::create_create_token_pool_instruction;
 use light_compressed_token_client::instructions::compress;
-use light_compressed_token_client::{
-    get_cpi_authority_pda, get_token_pool_pda, LIGHT_SYSTEM_PROGRAM_ID,
-};
+use light_compressed_token_client::{get_token_pool_pda, LIGHT_SYSTEM_PROGRAM_ID};
 use light_program_test::accounts::test_accounts::NOOP_PROGRAM_ID;
+use light_program_test::program_test::TestRpc;
 use light_program_test::{
     program_test::LightProgramTest, Indexer, ProgramTestConfig, RpcConnection,
 };
@@ -33,26 +31,20 @@ async fn test_claim_and_decompress() {
         )]),
     );
     let mut rpc = LightProgramTest::new(config).await.unwrap();
-    let payer = rpc.get_payer().insecure_clone();
-    let claimant = payer.pubkey();
-    let state_tree = rpc.get_state_merkle_tree().merkle_tree.clone();
-    let queue = rpc.get_state_merkle_tree().nullifier_queue.clone();
+    let state_tree = rpc.test_accounts.v1_state_trees[0].merkle_tree;
+    let queue = rpc.test_accounts.v1_state_trees[0].nullifier_queue;
 
     let (mint, token_account, owner) = setup_spl_token_account(&mut rpc).await;
+    setup_token_pool(&mut rpc, &mint).await;
 
-    assert_eq!(payer.pubkey(), owner.pubkey(), "payer must be owner");
-    // Setup token pool.
-    let create_token_pool_ix =
-        create_create_token_pool_instruction(&payer.pubkey(), &mint.pubkey(), false);
-
-    rpc.create_and_send_transaction(&[create_token_pool_ix], &payer.pubkey(), &[&payer, &owner])
-        .await
-        .unwrap();
-
-    let unlock_slot = 1;
+    let payer = rpc.get_payer().insecure_clone();
+    let claimant = Keypair::new();
+    let unlock_slot = 1_000;
     let amount = 2;
 
-    let (claimant_pda, bump_seed) = find_claimant_pda(claimant, mint.pubkey(), unlock_slot);
+    let (claimant_pda, bump_seed) =
+        find_claimant_pda(claimant.pubkey(), mint.pubkey(), unlock_slot);
+
     let compress_ix = compress(
         payer.pubkey(),
         owner.pubkey(),
@@ -64,27 +56,24 @@ async fn test_claim_and_decompress() {
     )
     .unwrap();
 
-    // we compress the funds to the timelocked recipient PDA.
+    // we compress 2 tokens to the timelocked recipient PDA.
     rpc.create_and_send_transaction(&[compress_ix], &payer.pubkey(), &[&payer, &owner])
         .await
         .unwrap();
 
+    // Fetch compressed token account and validity proof.
     let options = Some(GetCompressedTokenAccountsByOwnerOrDelegateOptions {
         mint: Some(mint.pubkey()),
         cursor: None,
         limit: None,
     });
-
-    let compressed_token_accounts = rpc
+    let compressed_token_account = rpc
         .get_compressed_token_accounts_by_owner(&claimant_pda, options, None)
         .await
-        .unwrap();
-
-    println!("compressed_token_accounts: {:?}", compressed_token_accounts);
-    assert_eq!(compressed_token_accounts.value.items.len(), 1);
-
-    let compressed_token_account: light_client::indexer::TokenAccount =
-        compressed_token_accounts.value.items[0].clone();
+        .unwrap()
+        .value
+        .items[0]
+        .clone();
 
     let proof = rpc
         .indexer()
@@ -93,16 +82,15 @@ async fn test_claim_and_decompress() {
         .await
         .unwrap();
 
-    println!("proof: {:?}", proof);
-    return;
-    let token_pool_pda = get_token_pool_pda(&mint.pubkey());
-
     // TODO: provide helper.
+    let token_pool_pda = get_token_pool_pda(&mint.pubkey());
     let accounts = ClaimAccounts {
-        claimant,
+        claimant: claimant.pubkey(),
         fee_payer: payer.pubkey(),
         associated_airdrop_pda: claimant_pda,
-        ctoken_cpi_authority_pda: get_cpi_authority_pda().0,
+        ctoken_cpi_authority_pda: Pubkey::from_str_const(
+            "GXtd2izAiMJPwMEjfgTRH3d7k9mjn4Jq3JrWFv9gySYy",
+        ),
         light_system_program: LIGHT_SYSTEM_PROGRAM_ID,
         registered_program_pda: Pubkey::from_str_const(
             "35hkDgaAKwMCaxRz2ocSZ6NaUrtKkyNqU6c4RV3tYJRh",
@@ -123,27 +111,48 @@ async fn test_claim_and_decompress() {
         queue,
     };
 
-    let root_index = proof.value.get_root_indices()[0].unwrap();
-    let merkle_context = compressed_token_account.account.merkle_context;
+    let packed_merkle_context = PackedMerkleContext {
+        merkle_tree_pubkey_index: 0,
+        queue_pubkey_index: 1,
+        leaf_index: compressed_token_account.account.leaf_index,
+        prove_by_index: compressed_token_account.account.prove_by_index,
+    };
 
-    // let mut remaining_accounts = RemainingAccount::default();
-    // let packed_merkle_context = PackedMerkleContext(merkle_context);
-
-    // TODO: ix_data needs to accept better index. just one is best i think!
     let instruction = build_claim_and_decompress_instruction(
         &accounts,
-        None,
-        root_index,
-        PackedMerkleContext::default(),
+        proof.value.proof.clone().into(),
+        proof.value.get_root_indices()[0].unwrap(),
+        packed_merkle_context,
         amount,
         mint.pubkey(),
         unlock_slot,
         bump_seed,
     );
+    let instruction_clone = instruction.clone();
 
-    println!("instruction: {:?}", instruction);
+    // SPL token account should be without the compressed tokens.
+    let account_info = rpc
+        .context
+        .banks_client
+        .get_account(token_account.pubkey())
+        .await
+        .unwrap();
+    let account_data = Account::unpack(&account_info.unwrap().data).unwrap();
+    assert_eq!(account_data.amount, 10 - amount);
 
-    rpc.create_and_send_transaction(&[instruction], &payer.pubkey(), &[&payer, &owner])
+    // not yet unlocked.
+    rpc.warp_to_slot(999).unwrap();
+    let result = rpc
+        .create_and_send_transaction(&[instruction], &payer.pubkey(), &[&payer, &claimant])
+        .await;
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "TransactionError: Error processing Instruction 0: custom program error: 0x1"
+    );
+
+    // now unlocked.
+    rpc.warp_to_slot(1000).unwrap();
+    rpc.create_and_send_transaction(&[instruction_clone], &payer.pubkey(), &[&payer, &claimant])
         .await
         .unwrap();
 
@@ -154,7 +163,7 @@ async fn test_claim_and_decompress() {
         .await
         .unwrap();
     let account_data = Account::unpack(&account_info.unwrap().data).unwrap();
-    println!("token account data: {:?}", account_data);
+    assert_eq!(account_data.amount, 10);
 }
 
 pub fn find_claimant_pda(claimant: Pubkey, mint: Pubkey, slot: u64) -> (Pubkey, u8) {
@@ -166,8 +175,18 @@ pub fn find_claimant_pda(claimant: Pubkey, mint: Pubkey, slot: u64) -> (Pubkey, 
     Pubkey::find_program_address(seeds, &light_compressed_claim::id())
 }
 
-// Create a new SPL mint, with a new mint account, token account for given
-// owner, and funds it with tokens. returns (mint_account, token_account, owner)
+pub async fn setup_token_pool(rpc: &mut LightProgramTest, mint: &Keypair) {
+    let payer = rpc.get_payer().insecure_clone();
+    let create_token_pool_ix =
+        create_create_token_pool_instruction(&payer.pubkey(), &mint.pubkey(), false);
+    rpc.create_and_send_transaction(&[create_token_pool_ix], &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+}
+
+/// Creates a new SPL mint and a token account, and funds it with tokens.
+///
+/// Returns (mint_account, token_account, owner)
 pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Keypair, Keypair) {
     let payer = rpc.get_payer().insecure_clone();
 
@@ -246,7 +265,6 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
         .await
         .unwrap();
 
-    // Inspect account
     let token_account_info = rpc
         .context
         .banks_client
@@ -255,15 +273,13 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
         .unwrap()
         .expect("could not fetch account information");
     let account_data = Account::unpack(&token_account_info.data).unwrap();
-    println!("account data: {:?}", account_data);
+
     assert_eq!(
         account_data.amount,
         mint_amount.clone(),
         "not correct amount"
     );
-
     assert_eq!(account_data.mint, mint_account.pubkey(), "not correct mint");
-
     assert_eq!(
         account_data.owner,
         payer.pubkey(),

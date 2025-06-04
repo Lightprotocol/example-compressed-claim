@@ -16,25 +16,27 @@ default = ["cpi"]
 
 [dependencies]
 solana-program = "2.2.1"
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
+light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
 thiserror = "2.0.11"
 borsh = "0.10.0"
+solana-sdk = "2.2.1"
 
 [dev-dependencies]
-light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
+light-compressed-token = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
+light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
 solana-program-test = "2.2.1"
-light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
-solana-sdk = "2.2.1"
+light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
+
 spl-token = "5.0.0"
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
-light-compressed-token = { git = "https://github.com/lightprotocol/light-protocol", rev = "737f146b5e570c808c6ce526810a366ea811eed7", default-features = false }
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
+
 
 
