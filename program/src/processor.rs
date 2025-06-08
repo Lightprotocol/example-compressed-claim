@@ -25,7 +25,7 @@ pub fn process_instruction(
     let instruction = ClaimProgramInstruction::try_from_slice(instruction_data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
     match instruction {
-        ClaimProgramInstruction::Claim {
+        ClaimProgramInstruction::ClaimAndDecompress {
             proof,
             root_index,
             merkle_context,
@@ -34,7 +34,7 @@ pub fn process_instruction(
             mint,
             unlock_slot,
             bump_seed,
-        } => process_claim(
+        } => process_claim_and_decompress(
             program_id,
             accounts,
             proof,
@@ -50,7 +50,7 @@ pub fn process_instruction(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn process_claim(
+fn process_claim_and_decompress(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     proof: Option<CompressedProof>,

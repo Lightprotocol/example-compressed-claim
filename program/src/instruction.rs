@@ -8,7 +8,7 @@ use solana_program::instruction::{AccountMeta, Instruction};
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum ClaimProgramInstruction {
-    Claim {
+    ClaimAndDecompress {
         proof: Option<CompressedProof>,
         root_index: u16,
         merkle_context: PackedMerkleContext,
