@@ -9,6 +9,8 @@ use light_compressed_token_sdk::{
     },
     state::InputTokenDataWithContext,
 };
+
+use light_sdk::cpi_accounts::TransferCpiAccounts;
 use solana_program::{
     account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
     program::invoke_signed, program_error::ProgramError, pubkey::Pubkey, sysvar::Sysvar,
