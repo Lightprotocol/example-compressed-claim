@@ -3,7 +3,7 @@
 use light_client::indexer::GetCompressedTokenAccountsByOwnerOrDelegateOptions;
 use light_compressed_account::compressed_account::PackedMerkleContext;
 use light_compressed_account::constants::ACCOUNT_COMPRESSION_PROGRAM_ID;
-use light_compressed_claim::instruction::{build_claim_and_decompress_instruction, ClaimAccounts};
+use light_compressed_claim::client::{build_claim_and_decompress_instruction, ClaimAccounts};
 use light_compressed_token::mint_sdk::create_create_token_pool_instruction;
 use light_compressed_token_client::instructions::compress;
 use light_compressed_token_client::{get_token_pool_pda, LIGHT_SYSTEM_PROGRAM_ID};
