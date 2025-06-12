@@ -14,9 +14,16 @@ pub fn process_instruction(
     crate::processor::process_instruction(program_id, accounts, instruction_data)
 }
 
+solana_program::declare_id!("7UHB3CfWv7SugNhfdyP7aeZJPMjnpd9zJ7xYkHozB3Na");
+
+mod check_pda;
+mod constants;
 mod error;
 pub mod instruction;
+mod instructions;
 pub mod processor;
-pub use solana_program;
 
-solana_program::declare_id!("7UHB3CfWv7SugNhfdyP7aeZJPMjnpd9zJ7xYkHozB3Na");
+#[cfg(not(target_os = "solana"))]
+pub use instruction::client;
+
+pub use solana_program;

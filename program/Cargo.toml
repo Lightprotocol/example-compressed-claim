@@ -15,22 +15,23 @@ cpi = []
 default = ["cpi"]
 
 [dependencies]
-solana-program = "2.2.1"
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
+solana-program = "=2.2.1"
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "52437b6f281225b8546b2671ccc6dae2b3d5f0b6" }
+light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "52437b6f281225b8546b2671ccc6dae2b3d5f0b6" }
 thiserror = "2.0.11"
 borsh = "0.10.0"
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "52437b6f281225b8546b2671ccc6dae2b3d5f0b6" }
+
 
 [dev-dependencies]
-solana-sdk = "2.2.1"
-light-compressed-token = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
-light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
-solana-program-test = "2.2.1"
-light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
+solana-sdk = "=2.2.1"
+light-compressed-token = { git = "https://github.com/lightprotocol/light-protocol", rev = "52437b6f281225b8546b2671ccc6dae2b3d5f0b6" }
+light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "52437b6f281225b8546b2671ccc6dae2b3d5f0b6" }
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "52437b6f281225b8546b2671ccc6dae2b3d5f0b6", features = ["v2"] }
+solana-program-test = "=2.2.1"
+light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "52437b6f281225b8546b2671ccc6dae2b3d5f0b6", features = ["v2"] }
 
 spl-token = "5.0.0"
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
 
 [lib]
 crate-type = ["cdylib", "lib"]

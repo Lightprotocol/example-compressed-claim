@@ -3,15 +3,13 @@
 use light_client::indexer::GetCompressedTokenAccountsByOwnerOrDelegateOptions;
 use light_compressed_account::compressed_account::PackedMerkleContext;
 use light_compressed_account::constants::ACCOUNT_COMPRESSION_PROGRAM_ID;
-use light_compressed_claim::instruction::{build_claim_and_decompress_instruction, ClaimAccounts};
+use light_compressed_claim::client::{build_claim_and_decompress_instruction, ClaimAccounts};
 use light_compressed_token::mint_sdk::create_create_token_pool_instruction;
 use light_compressed_token_client::instructions::compress;
 use light_compressed_token_client::{get_token_pool_pda, LIGHT_SYSTEM_PROGRAM_ID};
 use light_program_test::accounts::test_accounts::NOOP_PROGRAM_ID;
 use light_program_test::program_test::TestRpc;
-use light_program_test::{
-    program_test::LightProgramTest, Indexer, ProgramTestConfig, RpcConnection,
-};
+use light_program_test::{program_test::LightProgramTest, Indexer, ProgramTestConfig, Rpc};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
@@ -133,12 +131,11 @@ async fn test_claim_and_decompress() {
 
     // SPL token account should be without the compressed tokens.
     let account_info = rpc
-        .context
-        .banks_client
         .get_account(token_account.pubkey())
         .await
+        .unwrap()
         .unwrap();
-    let account_data = Account::unpack(&account_info.unwrap().data).unwrap();
+    let account_data = Account::unpack(&account_info.data).unwrap();
     assert_eq!(account_data.amount, 10 - amount);
 
     // not yet unlocked.
@@ -158,12 +155,11 @@ async fn test_claim_and_decompress() {
         .unwrap();
 
     let account_info = rpc
-        .context
-        .banks_client
         .get_account(token_account.pubkey())
         .await
+        .unwrap()
         .unwrap();
-    let account_data = Account::unpack(&account_info.unwrap().data).unwrap();
+    let account_data = Account::unpack(&account_info.data).unwrap();
     assert_eq!(account_data.amount, 10);
 }
 
@@ -194,8 +190,7 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
     let mint_account = Keypair::new();
     let owner = payer.insecure_clone();
     let token_program = &id();
-    let rent = rpc.context.banks_client.get_rent().await.unwrap();
-    let mint_rent = rent.minimum_balance(Mint::LEN);
+    let mint_rent = rpc.context.minimum_balance_for_rent_exemption(Mint::LEN);
 
     let token_mint_a_account_ix = solana_program::system_instruction::create_account(
         &payer.pubkey(),
@@ -224,7 +219,7 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
     .unwrap();
 
     // Create account that can hold the newly minted tokens
-    let account_rent = rent.minimum_balance(Account::LEN);
+    let account_rent = rpc.context.minimum_balance_for_rent_exemption(Account::LEN);
     let token_account = Keypair::new();
     let new_token_account_ix = system_instruction::create_account(
         &payer.pubkey(),
@@ -267,12 +262,10 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
         .unwrap();
 
     let token_account_info = rpc
-        .context
-        .banks_client
-        .get_account(token_account.pubkey().clone())
+        .get_account(token_account.pubkey())
         .await
         .unwrap()
-        .expect("could not fetch account information");
+        .unwrap();
     let account_data = Account::unpack(&token_account_info.data).unwrap();
 
     assert_eq!(
