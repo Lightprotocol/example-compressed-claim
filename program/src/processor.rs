@@ -1,6 +1,6 @@
 use crate::{
     instruction::ClaimProgramInstruction,
-    instructions::claim_and_decompress::process_claim_and_decompress,
+    instructions::{claim::process_claim, claim_and_decompress::process_claim_and_decompress},
 };
 use borsh::BorshDeserialize;
 use solana_program::{
@@ -26,6 +26,27 @@ pub fn process_instruction(
             unlock_slot,
             bump_seed,
         } => process_claim_and_decompress(
+            program_id,
+            accounts,
+            proof,
+            root_index,
+            merkle_context,
+            amount,
+            lamports,
+            mint,
+            unlock_slot,
+            bump_seed,
+        ),
+        ClaimProgramInstruction::Claim {
+            proof,
+            root_index,
+            merkle_context,
+            amount,
+            lamports,
+            mint,
+            unlock_slot,
+            bump_seed,
+        } => process_claim(
             program_id,
             accounts,
             proof,

@@ -15,6 +15,16 @@ pub enum ClaimProgramInstruction {
         unlock_slot: u64,
         bump_seed: u8,
     },
+    Claim {
+        proof: Option<CompressedProof>,
+        root_index: u16,
+        merkle_context: PackedMerkleContext,
+        amount: u64,
+        lamports: Option<u64>,
+        mint: Pubkey,
+        unlock_slot: u64,
+        bump_seed: u8,
+    },
 }
 
 #[cfg(not(target_os = "solana"))]
@@ -168,6 +178,24 @@ pub mod client {
                 ClaimProgramInstruction::try_from_slice(&instruction.data).unwrap();
             match deserialized {
                 ClaimProgramInstruction::ClaimAndDecompress {
+                    amount: _amount,
+                    lamports: _lamports,
+                    mint: _mint,
+                    root_index: _root_index,
+                    merkle_context: _merkle_context,
+                    unlock_slot: _unlock_slot,
+                    bump_seed: _bump_seed,
+                    ..
+                } => {
+                    assert_eq!(amount, _amount);
+                    assert_eq!(lamports, _lamports);
+                    assert_eq!(mint, _mint);
+                    assert_eq!(root_index, _root_index);
+                    assert_eq!(merkle_context, _merkle_context);
+                    assert_eq!(unlock_slot, _unlock_slot);
+                    assert_eq!(bump_seed, _bump_seed);
+                }
+                ClaimProgramInstruction::Claim {
                     amount: _amount,
                     lamports: _lamports,
                     mint: _mint,
