@@ -97,6 +97,17 @@ impl<'a> ToAccountInfos<'a> for CompressedTokenDecompressCpiAccounts<'a> {
     }
 }
 
+/// Helper trait to get the compressed token program from CPI accounts
+trait CompressedTokenProgramGetter<'a> {
+    fn compressed_token_program(&self) -> &AccountInfo<'a>;
+}
+
+impl<'a> CompressedTokenProgramGetter<'a> for CompressedTokenDecompressCpiAccounts<'a> {
+    fn compressed_token_program(&self) -> &AccountInfo<'a> {
+        &self.self_program
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn process_claim(
     program_id: &Pubkey,
@@ -127,9 +138,9 @@ pub fn process_claim(
         return Err(ProgramError::MissingRequiredSignature);
     }
     // CHECK:
-    if light_cpi_accounts.self_program.key != &CTOKEN_PROGRAM_ID {
+    if light_cpi_accounts.compressed_token_program().key != &CTOKEN_PROGRAM_ID {
         msg!("Invalid compressed token program.",);
-        light_cpi_accounts.self_program.key.log();
+        light_cpi_accounts.compressed_token_program().key.log();
         return Err(ProgramError::InvalidArgument);
     }
 
