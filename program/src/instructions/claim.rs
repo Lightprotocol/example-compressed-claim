@@ -26,48 +26,56 @@ const CTOKEN_CPI_ACCOUNT_COUNT: usize = 15;
 /// * `start_index` - Index where CPI accounts begin
 ///
 /// # Returns
-/// * Tuple of (CPI accounts struct, remaining accounts slice)
+/// * `Result` containing tuple of (CPI accounts struct, remaining accounts slice)
+///
+/// # Errors
+/// * `ProgramError::NotEnoughAccountKeys` if there aren't enough accounts
 ///
 /// # Example
 /// ```ignore
-/// let (cpi_accounts, remaining) = get_cpi_accounts!(accounts, 1)?;
+/// let (cpi_accounts, remaining) = get_cpi_accounts(accounts, 1)?;
 /// ```
-macro_rules! get_cpi_accounts {
-    ($accounts:expr, $start_index:expr) => {{
-        let accounts = $accounts;
-        let start_idx = $start_index;
-        let end_idx = start_idx + CTOKEN_CPI_ACCOUNT_COUNT;
+fn get_cpi_accounts<'a, 'b>(
+    accounts: &'a [AccountInfo<'b>],
+    start_index: usize,
+) -> Result<
+    (
+        CompressedTokenDecompressCpiAccounts<'b>,
+        &'a [AccountInfo<'b>],
+    ),
+    ProgramError,
+> {
+    let end_index = start_index + CTOKEN_CPI_ACCOUNT_COUNT;
 
-        if accounts.len() < end_idx {
-            msg!(
-                "Not enough accounts for CPI: expected at least {}, got {}",
-                end_idx,
-                accounts.len()
-            );
-            Err(ProgramError::NotEnoughAccountKeys)
-        } else {
-            let cpi_accounts = CompressedTokenDecompressCpiAccounts {
-                fee_payer: accounts[start_idx].clone(),
-                authority: accounts[start_idx + 1].clone(),
-                cpi_authority_pda: accounts[start_idx + 2].clone(),
-                light_system_program: accounts[start_idx + 3].clone(),
-                registered_program_pda: accounts[start_idx + 4].clone(),
-                noop_program: accounts[start_idx + 5].clone(),
-                account_compression_authority: accounts[start_idx + 6].clone(),
-                account_compression_program: accounts[start_idx + 7].clone(),
-                self_program: accounts[start_idx + 8].clone(),
-                token_pool_pda: accounts[start_idx + 9].clone(),
-                decompress_destination: accounts[start_idx + 10].clone(),
-                token_program: accounts[start_idx + 11].clone(),
-                system_program: accounts[start_idx + 12].clone(),
-                state_merkle_tree: accounts[start_idx + 13].clone(),
-                queue: accounts[start_idx + 14].clone(),
-            };
+    if accounts.len() < end_index {
+        msg!(
+            "Not enough accounts for CPI: expected at least {}, got {}",
+            end_index,
+            accounts.len()
+        );
+        return Err(ProgramError::NotEnoughAccountKeys);
+    }
 
-            let remaining = &accounts[end_idx..];
-            Ok::<_, ProgramError>((cpi_accounts, remaining))
-        }
-    }};
+    let cpi_accounts = CompressedTokenDecompressCpiAccounts {
+        fee_payer: accounts[start_index].clone(),
+        authority: accounts[start_index + 1].clone(),
+        cpi_authority_pda: accounts[start_index + 2].clone(),
+        light_system_program: accounts[start_index + 3].clone(),
+        registered_program_pda: accounts[start_index + 4].clone(),
+        noop_program: accounts[start_index + 5].clone(),
+        account_compression_authority: accounts[start_index + 6].clone(),
+        account_compression_program: accounts[start_index + 7].clone(),
+        self_program: accounts[start_index + 8].clone(),
+        token_pool_pda: accounts[start_index + 9].clone(),
+        decompress_destination: accounts[start_index + 10].clone(),
+        token_program: accounts[start_index + 11].clone(),
+        system_program: accounts[start_index + 12].clone(),
+        state_merkle_tree: accounts[start_index + 13].clone(),
+        queue: accounts[start_index + 14].clone(),
+    };
+
+    let remaining = &accounts[end_index..];
+    Ok((cpi_accounts, remaining))
 }
 
 /// Helper trait to convert CPI accounts to array for invoke_signed
@@ -123,7 +131,7 @@ pub fn process_claim(
 ) -> ProgramResult {
     let claimant_info = &accounts[0];
 
-    let (light_cpi_accounts, _remaining) = get_cpi_accounts!(accounts, 1)?;
+    let (light_cpi_accounts, _remaining) = get_cpi_accounts(accounts, 1)?;
 
     // CHECK:
     if !claimant_info.is_signer {
