@@ -33,9 +33,9 @@ const CTOKEN_CPI_ACCOUNT_COUNT: usize = 15;
 ///
 /// # Example
 /// ```ignore
-/// let (cpi_accounts, remaining) = get_cpi_accounts(accounts, 1)?;
+/// let (cpi_accounts, remaining) = get_compressed_token_cpi_accounts(accounts, 1)?;
 /// ```
-fn get_cpi_accounts<'a, 'b>(
+fn get_compressed_token_cpi_accounts<'a, 'b>(
     accounts: &'a [AccountInfo<'b>],
     start_index: usize,
 ) -> Result<
@@ -131,7 +131,7 @@ pub fn process_claim(
 ) -> ProgramResult {
     let claimant_info = &accounts[0];
 
-    let (light_cpi_accounts, _remaining) = get_cpi_accounts(accounts, 1)?;
+    let (light_cpi_accounts, _remaining) = get_compressed_token_cpi_accounts(accounts, 1)?;
 
     // CHECK:
     if !claimant_info.is_signer {
