@@ -1,120 +1,18 @@
-use crate::{check_pda::check_claim_pda, constants::CTOKEN_PROGRAM_ID, error::ClaimError};
+use crate::instructions::sdk::{self, decompress, get_decompress_cpi_accounts, ToAccountInfos};
+use crate::{
+    check_pda::check_claim_pda, constants::CTOKEN_PROGRAM_ID, error::ClaimError,
+    instructions::sdk::CompressedTokenProgramGetter,
+};
 use light_compressed_account::{
     compressed_account::PackedMerkleContext, instruction_data::compressed_proof::CompressedProof,
 };
 use light_compressed_token_sdk::{
-    cpi::{
-        self, account_info::get_compressed_token_account_info,
-        accounts::CompressedTokenDecompressCpiAccounts,
-    },
-    state::InputTokenDataWithContext,
+    cpi::account_info::get_compressed_token_account_info, state::InputTokenDataWithContext,
 };
 use solana_program::{
     account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
     program::invoke_signed, program_error::ProgramError, pubkey::Pubkey, sysvar::Sysvar,
 };
-
-// TODO: move to light-compressed-token-sdk
-// TODO: deal with queue and tree separately (needs dynamic)
-/// Number of accounts required for compressed token CPI
-const CTOKEN_CPI_ACCOUNT_COUNT: usize = 15;
-
-/// Extract compressed token CPI accounts from instruction accounts
-///
-/// # Arguments
-/// * `accounts` - The instruction accounts array
-/// * `start_index` - Index where CPI accounts begin
-///
-/// # Returns
-/// * `Result` containing tuple of (CPI accounts struct, remaining accounts slice)
-///
-/// # Errors
-/// * `ProgramError::NotEnoughAccountKeys` if there aren't enough accounts
-///
-/// # Example
-/// ```ignore
-/// let (cpi_accounts, remaining) = get_compressed_token_cpi_accounts(accounts, 1)?;
-/// ```
-fn get_compressed_token_cpi_accounts<'a, 'b>(
-    accounts: &'a [AccountInfo<'b>],
-    start_index: usize,
-) -> Result<
-    (
-        CompressedTokenDecompressCpiAccounts<'b>,
-        &'a [AccountInfo<'b>],
-    ),
-    ProgramError,
-> {
-    let end_index = start_index + CTOKEN_CPI_ACCOUNT_COUNT;
-
-    if accounts.len() < end_index {
-        msg!(
-            "Not enough accounts for CPI: expected at least {}, got {}",
-            end_index,
-            accounts.len()
-        );
-        return Err(ProgramError::NotEnoughAccountKeys);
-    }
-
-    let cpi_accounts = CompressedTokenDecompressCpiAccounts {
-        fee_payer: accounts[start_index].clone(),
-        authority: accounts[start_index + 1].clone(),
-        cpi_authority_pda: accounts[start_index + 2].clone(),
-        light_system_program: accounts[start_index + 3].clone(),
-        registered_program_pda: accounts[start_index + 4].clone(),
-        noop_program: accounts[start_index + 5].clone(),
-        account_compression_authority: accounts[start_index + 6].clone(),
-        account_compression_program: accounts[start_index + 7].clone(),
-        self_program: accounts[start_index + 8].clone(),
-        token_pool_pda: accounts[start_index + 9].clone(),
-        decompress_destination: accounts[start_index + 10].clone(),
-        token_program: accounts[start_index + 11].clone(),
-        system_program: accounts[start_index + 12].clone(),
-        state_merkle_tree: accounts[start_index + 13].clone(),
-        queue: accounts[start_index + 14].clone(),
-    };
-
-    let remaining = &accounts[end_index..];
-    Ok((cpi_accounts, remaining))
-}
-
-/// Helper trait to convert CPI accounts to array for invoke_signed
-trait ToAccountInfos<'a> {
-    fn to_account_infos(&self) -> [AccountInfo<'a>; CTOKEN_CPI_ACCOUNT_COUNT];
-}
-
-impl<'a> ToAccountInfos<'a> for CompressedTokenDecompressCpiAccounts<'a> {
-    fn to_account_infos(&self) -> [AccountInfo<'a>; CTOKEN_CPI_ACCOUNT_COUNT] {
-        [
-            self.fee_payer.clone(),
-            self.authority.clone(),
-            self.cpi_authority_pda.clone(),
-            self.light_system_program.clone(),
-            self.registered_program_pda.clone(),
-            self.noop_program.clone(),
-            self.account_compression_authority.clone(),
-            self.account_compression_program.clone(),
-            self.self_program.clone(),
-            self.token_pool_pda.clone(),
-            self.decompress_destination.clone(),
-            self.token_program.clone(),
-            self.system_program.clone(),
-            self.state_merkle_tree.clone(),
-            self.queue.clone(),
-        ]
-    }
-}
-
-/// Helper trait to get the compressed token program from CPI accounts
-trait CompressedTokenProgramGetter<'a> {
-    fn compressed_token_program(&self) -> &AccountInfo<'a>;
-}
-
-impl<'a> CompressedTokenProgramGetter<'a> for CompressedTokenDecompressCpiAccounts<'a> {
-    fn compressed_token_program(&self) -> &AccountInfo<'a> {
-        &self.self_program
-    }
-}
 
 #[allow(clippy::too_many_arguments)]
 pub fn process_claim(
@@ -131,7 +29,8 @@ pub fn process_claim(
 ) -> ProgramResult {
     let claimant_info = &accounts[0];
 
-    let (light_cpi_accounts, _remaining) = get_compressed_token_cpi_accounts(accounts, 1)?;
+    let (light_cpi_accounts, _remaining) =
+        get_decompress_cpi_accounts(accounts, 1, &[merkle_context])?;
 
     // CHECK:
     if !claimant_info.is_signer {
@@ -181,7 +80,7 @@ pub fn process_claim(
 #[allow(clippy::too_many_arguments)]
 fn check_pda_and_claim_token(
     claim_program: &Pubkey,
-    light_cpi_accounts: CompressedTokenDecompressCpiAccounts,
+    light_cpi_accounts: crate::instructions::sdk::CompressedTokenDecompressCpiAccounts,
     compressed_token_account: InputTokenDataWithContext,
     proof: &Option<CompressedProof>,
     claimant: AccountInfo<'_>,
@@ -202,9 +101,9 @@ fn check_pda_and_claim_token(
 
     check_claim_pda(seeds, claim_program, light_cpi_accounts.authority.key)?;
 
-    // TODO: replace with transfer cpi. (decompress_destination -> new owner)
-    let instruction = cpi::instruction::decompress(
-        &mint,
+    let instruction = sdk::decompress(
+        &mint,        // mint
+        claimant.key, // owner
         vec![compressed_token_account],
         proof,
         &light_cpi_accounts,
@@ -212,10 +111,7 @@ fn check_pda_and_claim_token(
     )?;
 
     let signers_seeds: &[&[&[u8]]] = &[&seeds[..]];
-    invoke_signed(
-        &instruction,
-        &light_cpi_accounts.to_account_infos()[..],
-        signers_seeds,
-    )?;
+    let account_infos = light_cpi_accounts.to_account_infos();
+    invoke_signed(&instruction, &account_infos[..], signers_seeds)?;
     Ok(())
 }
