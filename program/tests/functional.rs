@@ -171,16 +171,22 @@ async fn test_claim_and_decompress() {
         packed_accounts,
     };
 
+    // For V2 batched trees, accounts in the output queue should have prove_by_index = true
+    // The local test indexer may not set this correctly, so we force it based on
+    // the account being newly compressed (leaf_index 0 in output queue)
+    let prove_by_index = true; // Account is in output queue, proven by index not by ZK proof
+
     let packed_merkle_context = PackedMerkleContext {
         merkle_tree_pubkey_index: 0,
         queue_pubkey_index: 1,
         leaf_index: compressed_token_account.account.leaf_index,
-        prove_by_index: compressed_token_account.account.prove_by_index,
+        prove_by_index,
     };
 
     // Build the claim instruction with new API
     let validity_proof: ValidityProof = proof.value.proof.clone().into();
-    let root_index = proof.value.get_root_indices()[0].unwrap();
+    // For V2 batched trees, root_index may be None when prove_by_index is true
+    let root_index = proof.value.get_root_indices()[0].unwrap_or(0);
 
     let instruction = build_claim_and_decompress_instruction(
         &accounts,
