@@ -1,18 +1,14 @@
-#![cfg(feature = "test-sbf")]
+//#![cfg(feature = "test-sbf")]
 
 use light_client::indexer::GetCompressedTokenAccountsByOwnerOrDelegateOptions;
 use light_compressed_account::compressed_account::PackedMerkleContext;
 use light_compressed_account::constants::ACCOUNT_COMPRESSION_PROGRAM_ID;
 use light_compressed_claim::instruction::{build_claim_and_decompress_instruction, ClaimAccounts};
-use light_compressed_token::mint_sdk::create_create_token_pool_instruction;
-use light_compressed_token_client::instructions::compress;
-use light_compressed_token_client::{get_token_pool_pda, LIGHT_SYSTEM_PROGRAM_ID};
 use light_program_test::accounts::test_accounts::NOOP_PROGRAM_ID;
 use light_program_test::program_test::TestRpc;
 use light_program_test::{
-    program_test::LightProgramTest, Indexer, ProgramTestConfig, RpcConnection,
+    program_test::LightProgramTest, Indexer, ProgramTestConfig, Rpc
 };
-use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::{program_pack::Pack, system_instruction};
@@ -31,13 +27,13 @@ async fn test_claim_and_decompress() {
         )]),
     );
     let mut rpc = LightProgramTest::new(config).await.unwrap();
+    let payer = Keypair::new();
+    rpc.airdrop_lamports(&payer.pubkey(), 10_000_000_000).await.unwrap();
     let state_tree = rpc.test_accounts.v1_state_trees[0].merkle_tree;
     let queue = rpc.test_accounts.v1_state_trees[0].nullifier_queue;
 
     let (mint, token_account, owner) = setup_spl_token_account(&mut rpc).await;
-    setup_token_pool(&mut rpc, &mint).await;
-
-    let payer = rpc.get_payer().insecure_clone();
+    setup_token_pool(&mut rpc, &mint, &payer).await;
     let claimant = Keypair::new();
     let unlock_slot = 1_000;
     let amount = 2;
@@ -176,8 +172,7 @@ pub fn find_claimant_pda(claimant: Pubkey, mint: Pubkey, slot: u64) -> (Pubkey, 
     Pubkey::find_program_address(seeds, &light_compressed_claim::id())
 }
 
-pub async fn setup_token_pool(rpc: &mut LightProgramTest, mint: &Keypair) {
-    let payer = rpc.get_payer().insecure_clone();
+pub async fn setup_token_pool(rpc: &mut LightProgramTest, mint: &Keypair, payer: &Keypair) {
     let create_token_pool_ix =
         create_create_token_pool_instruction(&payer.pubkey(), &mint.pubkey(), false);
     rpc.create_and_send_transaction(&[create_token_pool_ix], &payer.pubkey(), &[&payer])

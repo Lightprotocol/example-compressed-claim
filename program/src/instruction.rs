@@ -1,6 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use light_compressed_account::compressed_account::PackedMerkleContext;
 use light_compressed_account::instruction_data::compressed_proof::CompressedProof;
+use light_ctoken_sdk::ValidityProof;
+use light_sdk::instruction::PackedStateTreeInfo;
 use solana_program::pubkey::Pubkey;
 
 #[cfg(not(target_os = "solana"))]
@@ -9,9 +11,8 @@ use solana_program::instruction::{AccountMeta, Instruction};
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum ClaimProgramInstruction {
     Claim {
-        proof: Option<CompressedProof>,
-        root_index: u16,
-        merkle_context: PackedMerkleContext,
+        proof: ValidityProof,
+        packed_tree_info: PackedStateTreeInfo,
         amount: u64,
         lamports: Option<u64>,
         mint: Pubkey,
@@ -65,9 +66,8 @@ pub struct ClaimAccounts {
 #[allow(clippy::too_many_arguments)]
 pub fn build_claim_and_decompress_instruction(
     accounts: &ClaimAccounts,
-    proof: Option<CompressedProof>,
-    root_index: u16,
-    merkle_context: PackedMerkleContext,
+    proof: ValidityProof,
+    packed_tree_info: PackedStateTreeInfo,
     amount: u64,
     lamports: Option<u64>,
     mint: Pubkey,
@@ -95,8 +95,7 @@ pub fn build_claim_and_decompress_instruction(
 
     let instruction_data = ClaimProgramInstruction::Claim {
         proof,
-        root_index,
-        merkle_context,
+        packed_tree_info,
         amount,
         lamports,
         mint,
@@ -137,8 +136,6 @@ mod tests {
         };
 
         let mint = Pubkey::new_unique();
-        let root_index = 42;
-        let merkle_context = PackedMerkleContext::default();
         let amount = 1000;
         let lamports = Some(1000);
         let unlock_slot = 12345;
@@ -146,9 +143,14 @@ mod tests {
 
         let instruction = build_claim_and_decompress_instruction(
             &accounts,
-            None,
-            root_index,
-            merkle_context,
+            None.into(),
+            PackedStateTreeInfo {
+                root_index: 0,
+                merkle_tree_pubkey_index: 0,
+                prove_by_index: false,      
+                queue_pubkey_index: 0,
+                leaf_index: 0,
+            },
             amount,
             lamports,
             mint,
@@ -171,8 +173,7 @@ mod tests {
                 amount: _amount,
                 lamports: _lamports,
                 mint: _mint,
-                root_index: _root_index,
-                merkle_context: _merkle_context,
+                packed_tree_info: _packed_tree_info,
                 unlock_slot: _unlock_slot,
                 bump_seed: _bump_seed,
                 ..
@@ -180,8 +181,7 @@ mod tests {
                 assert_eq!(amount, _amount);
                 assert_eq!(lamports, _lamports);
                 assert_eq!(mint, _mint);
-                assert_eq!(root_index, _root_index);
-                assert_eq!(merkle_context, _merkle_context);
+                assert_eq!(packed_tree_info, _packed_tree_info);
                 assert_eq!(unlock_slot, _unlock_slot);
                 assert_eq!(bump_seed, _bump_seed);
             }
