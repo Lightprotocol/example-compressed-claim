@@ -15,22 +15,21 @@ cpi = []
 default = ["cpi"]
 
 [dependencies]
-solana-program = "2.2.1"
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["anchor"] }
+solana-program = "2.2"
+light-compressed-account = { version = "0.7.0", features = ["anchor"] }
+light-ctoken-sdk = { version = "0.2.1", features = ["anchor"] }
+light-ctoken-interface = { version = "0.1.1", features = ["anchor"] }
 thiserror = "2.0.11"
 borsh = "0.10.0"
 
 [dev-dependencies]
-solana-sdk = "2.2.1"
-light-compressed-token = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
-light-compressed-token-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
-solana-program-test = "2.2.1"
-light-client = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba", features = ["v2"] }
+solana-sdk = "2.2"
+light-compressed-token = { version = "2.0.0", features = ["no-entrypoint"] }
+light-program-test = { version = "0.17.1", features = ["v2"] }
+solana-program-test = "2.2"
+light-client = { version = "0.17.2", features = ["v2"] }
 
-spl-token = "5.0.0"
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", rev = "128b191ba" }
+spl-token = { version = "5.0.0", features = ["no-entrypoint"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]

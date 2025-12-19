@@ -1,18 +1,28 @@
 use crate::{error::ClaimError, instruction::ClaimProgramInstruction};
 use borsh::BorshDeserialize;
-use light_compressed_account::{
-    compressed_account::PackedMerkleContext, instruction_data::compressed_proof::CompressedProof,
-};
-use light_compressed_token_sdk::{
-    cpi::{
-        self, account_info::get_compressed_token_account_info,
-        accounts::CompressedTokenDecompressCpiAccounts,
+use light_compressed_account::compressed_account::PackedMerkleContext;
+use light_ctoken_interface::instructions::transfer2::MultiInputTokenDataWithContext;
+use light_ctoken_sdk::{
+    compressed_token::{
+        transfer2::{
+            create_transfer2_instruction, Transfer2AccountsMetaConfig, Transfer2Config,
+            Transfer2Inputs,
+        },
+        CTokenAccount2,
     },
-    state::InputTokenDataWithContext,
+    ValidityProof,
 };
 use solana_program::{
-    account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
-    program::invoke_signed, program_error::ProgramError, pubkey, pubkey::Pubkey, sysvar::Sysvar,
+    account_info::AccountInfo,
+    clock::Clock,
+    entrypoint::ProgramResult,
+    instruction::AccountMeta,
+    msg,
+    program::invoke_signed,
+    program_error::ProgramError,
+    pubkey,
+    pubkey::Pubkey,
+    sysvar::Sysvar,
 };
 
 const CTOKEN_PROGRAM_ID: Pubkey = pubkey!("cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m");
@@ -26,25 +36,36 @@ pub fn process_instruction(
         .map_err(|_| ProgramError::InvalidInstructionData)?;
     match instruction {
         ClaimProgramInstruction::Claim {
-            proof,
-            root_index,
+            validity_proof,
             merkle_context,
+            root_index,
             amount,
-            lamports,
             mint,
             unlock_slot,
             bump_seed,
+            // Indices into packed_accounts
+            owner_index,
+            mint_index,
+            destination_index,
+            pool_account_index,
+            pool_index,
+            pool_bump,
         } => process_claim(
             program_id,
             accounts,
-            proof,
-            root_index,
+            validity_proof,
             merkle_context,
+            root_index,
             amount,
-            lamports,
             mint,
             unlock_slot,
             bump_seed,
+            owner_index,
+            mint_index,
+            destination_index,
+            pool_account_index,
+            pool_index,
+            pool_bump,
         ),
     }
 }
@@ -53,60 +74,57 @@ pub fn process_instruction(
 fn process_claim(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    proof: Option<CompressedProof>,
-    root_index: u16,
+    validity_proof: ValidityProof,
     merkle_context: PackedMerkleContext,
+    root_index: u16,
     amount: u64,
-    lamports: Option<u64>,
     mint: Pubkey,
     unlock_slot: u64,
     bump_seed: u8,
+    owner_index: u8,
+    mint_index: u8,
+    destination_index: u8,
+    pool_account_index: u8,
+    pool_index: u8,
+    pool_bump: u8,
 ) -> ProgramResult {
+    // Account layout:
+    // 0: claimant (signer)
+    // 1: fee_payer (signer)
+    // 2: associated_airdrop_pda (authority for the compressed tokens)
+    // 3: ctoken_program
+    // 4: ctoken_cpi_authority_pda
+    // 5: light_system_program
+    // 6: registered_program_pda
+    // 7: account_compression_authority
+    // 8: account_compression_program
+    // 9: system_program
+    // 10+: packed_accounts (merkle tree, queue, mint, owner, destination, pool, etc.)
+
     let claimant_info = &accounts[0];
     let fee_payer_info = &accounts[1];
     let associated_airdrop_pda_info = &accounts[2];
-    let ctoken_cpi_authority_pda_info = &accounts[3];
-    let light_system_program_info = &accounts[4];
-    let registered_program_pda_info = &accounts[5];
-    let noop_program_info = &accounts[6];
-    let account_compression_authority_info = &accounts[7];
-    let account_compression_program_info = &accounts[8];
-    let ctoken_program_info = &accounts[9];
-    let token_pool_pda_info = &accounts[10];
-    let decompress_destination_info = &accounts[11];
-    let token_program_info = &accounts[12];
-    let system_program_info = &accounts[13];
-    let state_tree_info = &accounts[14];
-    let queue_info = &accounts[15];
+    let ctoken_program_info = &accounts[3];
 
-    if accounts.len() != 16 {
-        msg!("Expected 16 accounts, got {}", accounts.len());
-        return Err(ProgramError::NotEnoughAccountKeys);
-    }
-
-    // CHECK:
+    // CHECK: claimant must be signer
     if !claimant_info.is_signer {
         msg!("Claimant must be a signer");
-        claimant_info.key.log();
         return Err(ProgramError::MissingRequiredSignature);
     }
-    // CHECK:
+
+    // CHECK: fee_payer must be signer
     if !fee_payer_info.is_signer {
         msg!("Fee payer must be a signer");
-        fee_payer_info.key.log();
         return Err(ProgramError::MissingRequiredSignature);
     }
-    // CHECK:
+
+    // CHECK: ctoken program ID
     if ctoken_program_info.key != &CTOKEN_PROGRAM_ID {
-        msg!("Invalid compressed token program.",);
-        ctoken_program_info.key.log();
+        msg!("Invalid compressed token program");
         return Err(ProgramError::InvalidArgument);
     }
 
-    let ctoken_account =
-        get_compressed_token_account_info(merkle_context, root_index, amount, lamports);
-
-    // CHECK:
+    // CHECK: unlock slot
     let current_slot = Clock::get()?.slot;
     if current_slot < unlock_slot {
         msg!(
@@ -117,89 +135,70 @@ fn process_claim(
         return Err(ClaimError::TokensLocked.into());
     }
 
-    let light_cpi_accounts = CompressedTokenDecompressCpiAccounts {
-        fee_payer: fee_payer_info.clone(),
-        authority: associated_airdrop_pda_info.clone(),
-        cpi_authority_pda: ctoken_cpi_authority_pda_info.clone(),
-        light_system_program: light_system_program_info.clone(),
-        registered_program_pda: registered_program_pda_info.clone(),
-        noop_program: noop_program_info.clone(),
-        account_compression_authority: account_compression_authority_info.clone(),
-        account_compression_program: account_compression_program_info.clone(),
-        self_program: ctoken_program_info.clone(),
-        token_pool_pda: token_pool_pda_info.clone(),
-        decompress_destination: decompress_destination_info.clone(),
-        token_program: token_program_info.clone(),
-        system_program: system_program_info.clone(),
-        state_merkle_tree: state_tree_info.clone(),
-        queue: queue_info.clone(),
-    };
-    check_pda_and_decompress_token(
-        program_id,
-        light_cpi_accounts,
-        ctoken_account,
-        &proof,
-        claimant_info.clone(),
-        mint,
-        unlock_slot,
-        bump_seed,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn check_pda_and_decompress_token(
-    claim_program: &Pubkey,
-    light_cpi_accounts: CompressedTokenDecompressCpiAccounts,
-    compressed_token_account: InputTokenDataWithContext,
-    proof: &Option<CompressedProof>,
-    claimant: AccountInfo<'_>,
-    mint: Pubkey,
-    slot: u64,
-    bump_seed: u8,
-) -> ProgramResult {
-    let claimant_bytes = claimant.key.to_bytes();
-    let slot_bytes = slot.to_le_bytes();
+    // Verify the PDA
+    let claimant_bytes = claimant_info.key.to_bytes();
     let mint_bytes = mint.to_bytes();
-
+    let slot_bytes = unlock_slot.to_le_bytes();
     let seeds = &[
         &claimant_bytes[..32],
         &mint_bytes[..32],
         &slot_bytes[..8],
         &[bump_seed],
     ];
+    check_claim_pda(seeds, program_id, associated_airdrop_pda_info.key)?;
 
-    check_claim_pda(seeds, claim_program, light_cpi_accounts.authority.key)?;
+    // Build MultiInputTokenDataWithContext from instruction parameters
+    let input_token_data = MultiInputTokenDataWithContext {
+        owner: owner_index,
+        amount,
+        has_delegate: false,
+        delegate: 0,
+        mint: mint_index,
+        version: 3, // V2 for batched Merkle trees
+        merkle_context,
+        root_index,
+    };
 
-    let instruction = cpi::instruction::decompress(
-        &mint,
-        vec![compressed_token_account],
-        proof,
-        &light_cpi_accounts,
-        None,
-    )?;
+    // Create CTokenAccount2 and set up SPL decompression
+    let mut token_account = CTokenAccount2::new(vec![input_token_data])
+        .map_err(|_| ProgramError::InvalidAccountData)?;
 
-    let signers_seeds: &[&[&[u8]]] = &[&seeds[..]];
-    invoke_signed(
-        &instruction,
-        &[
-            light_cpi_accounts.fee_payer,
-            light_cpi_accounts.authority,
-            light_cpi_accounts.cpi_authority_pda,
-            light_cpi_accounts.light_system_program,
-            light_cpi_accounts.registered_program_pda,
-            light_cpi_accounts.noop_program,
-            light_cpi_accounts.account_compression_authority,
-            light_cpi_accounts.account_compression_program,
-            light_cpi_accounts.self_program,
-            light_cpi_accounts.token_pool_pda,
-            light_cpi_accounts.decompress_destination,
-            light_cpi_accounts.token_program,
-            light_cpi_accounts.system_program,
-            light_cpi_accounts.state_merkle_tree,
-            light_cpi_accounts.queue,
-        ][..],
-        signers_seeds,
-    )?;
+    token_account
+        .decompress_spl(amount, destination_index, pool_account_index, pool_index, pool_bump)
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // Build packed account metas from accounts[10..]
+    // Force owner account to be signer for invoke_signed to work
+    let packed_accounts = &accounts[10..];
+    let packed_account_metas: Vec<AccountMeta> = packed_accounts
+        .iter()
+        .enumerate()
+        .map(|(i, info)| AccountMeta {
+            pubkey: *info.key,
+            is_signer: info.is_signer || i == owner_index as usize,
+            is_writable: info.is_writable,
+        })
+        .collect();
+
+    // Build the transfer2 instruction
+    let meta_config = Transfer2AccountsMetaConfig::new(*fee_payer_info.key, packed_account_metas);
+    let transfer_config = Transfer2Config::default().filter_zero_amount_outputs();
+
+    let inputs = Transfer2Inputs {
+        meta_config,
+        token_accounts: vec![token_account],
+        transfer_config,
+        validity_proof,
+        ..Default::default()
+    };
+
+    let instruction =
+        create_transfer2_instruction(inputs).map_err(|_| ProgramError::InvalidInstructionData)?;
+
+    // Invoke with PDA signer
+    let signers_seeds: &[&[&[u8]]] = &[seeds];
+    invoke_signed(&instruction, accounts, signers_seeds)?;
+
     Ok(())
 }
 
