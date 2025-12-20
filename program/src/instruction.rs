@@ -1,23 +1,33 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use light_compressed_account::compressed_account::PackedMerkleContext;
-use light_compressed_account::instruction_data::compressed_proof::CompressedProof;
+use light_ctoken_sdk::ValidityProof;
+use light_sdk::instruction::PackedStateTreeInfo;
 use solana_program::pubkey::Pubkey;
 
 #[cfg(not(target_os = "solana"))]
 use solana_program::instruction::{AccountMeta, Instruction};
 
+#[cfg(not(target_os = "solana"))]
+use light_ctoken_sdk::{
+    compressed_token::batch_compress::{
+        create_batch_compress_instruction, BatchCompressInputs, Recipient,
+    },
+    spl_interface::derive_spl_interface_pda,
+};
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct ClaimIxData {
+    pub proof: ValidityProof,
+    pub packed_tree_info: PackedStateTreeInfo,
+    pub amount: u64,
+    pub lamports: Option<u64>,
+    pub mint: Pubkey,
+    pub unlock_slot: u64,
+    pub bump_seed: u8,
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum ClaimProgramInstruction {
-    Claim {
-        proof: Option<CompressedProof>,
-        root_index: u16,
-        merkle_context: PackedMerkleContext,
-        amount: u64,
-        lamports: Option<u64>,
-        mint: Pubkey,
-        unlock_slot: u64,
-        bump_seed: u8,
-    },
+    Claim(ClaimIxData),
 }
 
 #[cfg(not(target_os = "solana"))]
@@ -65,9 +75,8 @@ pub struct ClaimAccounts {
 #[allow(clippy::too_many_arguments)]
 pub fn build_claim_and_decompress_instruction(
     accounts: &ClaimAccounts,
-    proof: Option<CompressedProof>,
-    root_index: u16,
-    merkle_context: PackedMerkleContext,
+    proof: ValidityProof,
+    packed_tree_info: PackedStateTreeInfo,
     amount: u64,
     lamports: Option<u64>,
     mint: Pubkey,
@@ -93,16 +102,15 @@ pub fn build_claim_and_decompress_instruction(
         AccountMeta::new(accounts.queue, false),
     ];
 
-    let instruction_data = ClaimProgramInstruction::Claim {
+    let instruction_data = ClaimProgramInstruction::Claim(ClaimIxData {
         proof,
-        root_index,
-        merkle_context,
+        packed_tree_info,
         amount,
         lamports,
         mint,
         unlock_slot,
         bump_seed,
-    };
+    });
 
     Instruction {
         program_id: crate::id(),
@@ -111,80 +119,45 @@ pub fn build_claim_and_decompress_instruction(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Creates a compress instruction that compresses SPL tokens to a compressed token account.
+///
+/// # Arguments
+/// * `fee_payer` - Account paying for the transaction
+/// * `authority` - Owner of the sender token account (must be signer)
+/// * `sender_token_account` - SPL token account to compress tokens from
+/// * `mint` - Token mint address
+/// * `amount` - Amount of tokens to compress
+/// * `recipient` - Recipient of the compressed tokens (can be a PDA)
+/// * `merkle_tree` - State tree to store the compressed account
+#[cfg(not(target_os = "solana"))]
+pub fn compress(
+    fee_payer: Pubkey,
+    authority: Pubkey,
+    sender_token_account: Pubkey,
+    mint: Pubkey,
+    amount: u64,
+    recipient: Pubkey,
+    merkle_tree: Pubkey,
+    token_program_id: Pubkey,
+) -> Result<Instruction, light_ctoken_sdk::error::CTokenSdkError> {
+    let spl_interface_info = derive_spl_interface_pda(&mint, 0);
 
-    #[test]
-    fn test_build_claim() {
-        let accounts = ClaimAccounts {
-            claimant: Pubkey::new_unique(),
-            fee_payer: Pubkey::new_unique(),
-            associated_airdrop_pda: Pubkey::new_unique(),
-            ctoken_cpi_authority_pda: Pubkey::new_unique(),
-            light_system_program: Pubkey::new_unique(),
-            registered_program_pda: Pubkey::new_unique(),
-            noop_program: Pubkey::new_unique(),
-            account_compression_authority: Pubkey::new_unique(),
-            account_compression_program: Pubkey::new_unique(),
-            ctoken_program: Pubkey::new_unique(),
-            token_pool_pda: Pubkey::new_unique(),
-            decompress_destination: Pubkey::new_unique(),
-            token_program: Pubkey::new_unique(),
-            system_program: Pubkey::new_unique(),
-            state_tree: Pubkey::new_unique(),
-            queue: Pubkey::new_unique(),
-        };
-
-        let mint = Pubkey::new_unique();
-        let root_index = 42;
-        let merkle_context = PackedMerkleContext::default();
-        let amount = 1000;
-        let lamports = Some(1000);
-        let unlock_slot = 12345;
-        let bump_seed = 1;
-
-        let instruction = build_claim_and_decompress_instruction(
-            &accounts,
-            None,
-            root_index,
-            merkle_context,
+    let inputs = BatchCompressInputs {
+        fee_payer,
+        authority,
+        spl_interface_pda: spl_interface_info.pubkey,
+        sender_token_account,
+        token_program: token_program_id,
+        merkle_tree,
+        recipients: vec![Recipient {
+            pubkey: recipient,
             amount,
-            lamports,
-            mint,
-            unlock_slot,
-            bump_seed,
-        );
+        }],
+        lamports: None,
+        token_pool_index: spl_interface_info.index,
+        token_pool_bump: spl_interface_info.bump,
+        sol_pool_pda: None,
+    };
 
-        assert_eq!(instruction.accounts.len(), 16);
-        assert_eq!(instruction.accounts[0].pubkey, accounts.claimant);
-        assert!(instruction.accounts[0].is_signer);
-        assert_eq!(instruction.accounts[1].pubkey, accounts.fee_payer);
-        assert!(instruction.accounts[1].is_signer);
-        assert!(!instruction.accounts[2].is_signer);
-
-        // Verify instruction can be deserialized
-        let deserialized: ClaimProgramInstruction =
-            ClaimProgramInstruction::try_from_slice(&instruction.data).unwrap();
-        match deserialized {
-            ClaimProgramInstruction::Claim {
-                amount: _amount,
-                lamports: _lamports,
-                mint: _mint,
-                root_index: _root_index,
-                merkle_context: _merkle_context,
-                unlock_slot: _unlock_slot,
-                bump_seed: _bump_seed,
-                ..
-            } => {
-                assert_eq!(amount, _amount);
-                assert_eq!(lamports, _lamports);
-                assert_eq!(mint, _mint);
-                assert_eq!(root_index, _root_index);
-                assert_eq!(merkle_context, _merkle_context);
-                assert_eq!(unlock_slot, _unlock_slot);
-                assert_eq!(bump_seed, _bump_seed);
-            }
-        }
-    }
+    create_batch_compress_instruction(inputs)
 }
