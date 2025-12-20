@@ -138,7 +138,7 @@ pub fn compress(
     amount: u64,
     recipient: Pubkey,
     merkle_tree: Pubkey,
-    token_program_id: Pubkey
+    token_program_id: Pubkey,
 ) -> Result<Instruction, light_ctoken_sdk::error::CTokenSdkError> {
     let spl_interface_info = derive_spl_interface_pda(&mint, 0);
 
@@ -147,7 +147,7 @@ pub fn compress(
         authority,
         spl_interface_pda: spl_interface_info.pubkey,
         sender_token_account,
-        token_program:token_program_id,
+        token_program: token_program_id,
         merkle_tree,
         recipients: vec![Recipient {
             pubkey: recipient,

@@ -10,9 +10,9 @@ use light_program_test::accounts::test_accounts::NOOP_PROGRAM_ID;
 use light_program_test::program_test::TestRpc;
 use light_program_test::{program_test::LightProgramTest, Indexer, ProgramTestConfig, Rpc};
 use light_sdk::instruction::PackedStateTreeInfo;
+use solana_sdk::program_pack::Pack;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
-use solana_sdk::program_pack::Pack;
 use spl_token::{
     id, instruction,
     state::{Account, Mint},
@@ -29,7 +29,9 @@ async fn test_claim_and_decompress() {
     );
     let mut rpc = LightProgramTest::new(config).await.unwrap();
     let payer = Keypair::new();
-    rpc.airdrop_lamports(&payer.pubkey(), 10_000_000_000).await.unwrap();
+    rpc.airdrop_lamports(&payer.pubkey(), 10_000_000_000)
+        .await
+        .unwrap();
     let state_tree = rpc.test_accounts.v2_state_trees[0].merkle_tree;
     let queue = rpc.test_accounts.v2_state_trees[0].output_queue;
 
@@ -109,7 +111,10 @@ async fn test_claim_and_decompress() {
     };
 
     let packed_merkle_context = PackedStateTreeInfo {
-        root_index: proof.value.accounts[0].root_index.root_index().unwrap_or_default(),
+        root_index: proof.value.accounts[0]
+            .root_index
+            .root_index()
+            .unwrap_or_default(),
         merkle_tree_pubkey_index: 0,
         queue_pubkey_index: 1,
         leaf_index: compressed_token_account.account.leaf_index,
@@ -129,10 +134,7 @@ async fn test_claim_and_decompress() {
     let instruction_clone = instruction.clone();
 
     // SPL token account should be without the compressed tokens.
-    let account_info = rpc
-        .get_account(token_account.pubkey())
-        .await
-        .unwrap();
+    let account_info = rpc.get_account(token_account.pubkey()).await.unwrap();
     let account_data = Account::unpack(&account_info.unwrap().data).unwrap();
     assert_eq!(account_data.amount, 10 - amount);
 
@@ -152,10 +154,7 @@ async fn test_claim_and_decompress() {
         .await
         .unwrap();
 
-    let account_info = rpc
-        .get_account(token_account.pubkey())
-        .await
-        .unwrap();
+    let account_info = rpc.get_account(token_account.pubkey()).await.unwrap();
     let account_data = Account::unpack(&account_info.unwrap().data).unwrap();
     assert_eq!(account_data.amount, 10);
 }
@@ -170,12 +169,8 @@ pub fn find_claimant_pda(claimant: Pubkey, mint: Pubkey, slot: u64) -> (Pubkey, 
 }
 
 pub async fn setup_token_pool(rpc: &mut LightProgramTest, mint: &Keypair, payer: &Keypair) {
-    let create_spl_interface_pda_ix = CreateSplInterfacePda::new(
-        payer.pubkey(),
-        mint.pubkey(),
-        spl_token::ID,
-    )
-    .instruction();
+    let create_spl_interface_pda_ix =
+        CreateSplInterfacePda::new(payer.pubkey(), mint.pubkey(), spl_token::ID).instruction();
     rpc.create_and_send_transaction(&[create_spl_interface_pda_ix], &payer.pubkey(), &[&payer])
         .await
         .unwrap();
@@ -190,13 +185,16 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
     let mint_account = Keypair::new();
     let owner = payer.insecure_clone();
     let token_program = &id();
-    let mint_rent = rpc.get_minimum_balance_for_rent_exemption(Mint::LEN).await.unwrap();
+    let mint_rent = rpc
+        .get_minimum_balance_for_rent_exemption(Mint::LEN)
+        .await
+        .unwrap();
 
     let token_mint_a_account_ix = solana_program::system_instruction::create_account(
         &payer.pubkey(),
         &mint_account.pubkey(),
         mint_rent,
-        Mint::LEN as u64,   
+        Mint::LEN as u64,
         token_program,
     );
 
@@ -219,7 +217,10 @@ pub async fn setup_spl_token_account(rpc: &mut LightProgramTest) -> (Keypair, Ke
     .unwrap();
 
     // Create account that can hold the newly minted tokens
-    let account_rent = rpc.get_minimum_balance_for_rent_exemption(Account::LEN).await.unwrap();
+    let account_rent = rpc
+        .get_minimum_balance_for_rent_exemption(Account::LEN)
+        .await
+        .unwrap();
     let token_account = Keypair::new();
     let new_token_account_ix = solana_sdk::system_instruction::create_account(
         &payer.pubkey(),

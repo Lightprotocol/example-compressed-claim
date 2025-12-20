@@ -1,44 +1,36 @@
-use crate::{error::ClaimError, instruction::{ClaimIxData, ClaimProgramInstruction}};
+use crate::{
+    error::ClaimError,
+    instruction::{ClaimIxData, ClaimProgramInstruction},
+};
 use borsh::BorshDeserialize;
 
 use light_ctoken_sdk::compressed_token::{
-    CTokenAccount, TokenAccountMeta, transfer::instruction::DecompressInputs,
+    transfer::instruction::DecompressInputs, CTokenAccount, TokenAccountMeta,
 };
 use solana_program::{
     account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
     program::invoke_signed, program_error::ProgramError, pubkey::Pubkey, sysvar::Sysvar,
 };
 
-
-pub fn process_instruction(
-    accounts: &[AccountInfo],
-    instruction_data: &[u8],
-) -> ProgramResult {
+pub fn process_instruction(accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
     let instruction = ClaimProgramInstruction::try_from_slice(instruction_data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
     match instruction {
-        ClaimProgramInstruction::Claim (ix_data) => process_claim(
-            accounts,
-          ix_data
-        ),
+        ClaimProgramInstruction::Claim(ix_data) => process_claim(accounts, ix_data),
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn process_claim(
-    accounts: &[AccountInfo],
-    ix_data: ClaimIxData,
-) -> ProgramResult {
-  
+fn process_claim(accounts: &[AccountInfo], ix_data: ClaimIxData) -> ProgramResult {
     let ClaimIxData {
-            proof,
-            packed_tree_info,
-            amount,
-            lamports,   
-            mint,
-            unlock_slot,
-            bump_seed,
-        } = ix_data;
+        proof,
+        packed_tree_info,
+        amount,
+        lamports,
+        mint,
+        unlock_slot,
+        bump_seed,
+    } = ix_data;
     let claimant_info = &accounts[0];
     let fee_payer_info = &accounts[1];
     let associated_airdrop_pda_info = &accounts[2];
@@ -103,11 +95,8 @@ fn process_claim(
         spl_token_program: token_program_info.key.clone(),
     };
 
-
-    let instruction = light_ctoken_sdk::compressed_token::transfer::instruction::decompress(
-     decompress_inputs,
-    )?;
-
+    let instruction =
+        light_ctoken_sdk::compressed_token::transfer::instruction::decompress(decompress_inputs)?;
 
     // CHECK:
     let current_slot = Clock::get()?.slot;
@@ -133,13 +122,8 @@ fn process_claim(
 
     check_claim_pda(seeds, &crate::ID, associated_airdrop_pda_info.key)?;
 
- 
     let signers_seeds: &[&[&[u8]]] = &[&seeds[..]];
-    invoke_signed(
-        &instruction,
-        &accounts,
-        signers_seeds,
-    )?;
+    invoke_signed(&instruction, &accounts, signers_seeds)?;
     Ok(())
 }
 

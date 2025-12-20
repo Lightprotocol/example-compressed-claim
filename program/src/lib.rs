@@ -1,6 +1,7 @@
 //! Program entrypoint
 use solana_program::{
-    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, pubkey::Pubkey, program_error::ProgramError
+    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, program_error::ProgramError,
+    pubkey::Pubkey,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
