@@ -1,10 +1,9 @@
-use crate::{error::ClaimError, instruction::ClaimProgramInstruction};
+use crate::{error::ClaimError, instruction::{ClaimIxData, ClaimProgramInstruction}};
 use borsh::BorshDeserialize;
 
-use light_ctoken_sdk::{
-    ValidityProof, compressed_token::{CTokenAccount, TokenAccountMeta, transfer::instruction::DecompressInputs} 
+use light_ctoken_sdk::compressed_token::{
+    CTokenAccount, TokenAccountMeta, transfer::instruction::DecompressInputs,
 };
-use light_sdk::instruction::PackedStateTreeInfo;
 use solana_program::{
     account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
     program::invoke_signed, program_error::ProgramError, pubkey::Pubkey, sysvar::Sysvar,
@@ -18,23 +17,9 @@ pub fn process_instruction(
     let instruction = ClaimProgramInstruction::try_from_slice(instruction_data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
     match instruction {
-        ClaimProgramInstruction::Claim {
-            proof,
-            packed_tree_info,
-            amount,
-            lamports,
-            mint,
-            unlock_slot,
-            bump_seed,
-        } => process_claim(
+        ClaimProgramInstruction::Claim (ix_data) => process_claim(
             accounts,
-            proof,
-            packed_tree_info,
-            amount,
-            lamports,
-            mint,
-            unlock_slot,
-            bump_seed,
+          ix_data
         ),
     }
 }
@@ -42,14 +27,18 @@ pub fn process_instruction(
 #[allow(clippy::too_many_arguments)]
 fn process_claim(
     accounts: &[AccountInfo],
-    proof: ValidityProof,
-    packed_tree_info: PackedStateTreeInfo,
-    amount: u64,
-    lamports: Option<u64>,
-    mint: Pubkey,
-    unlock_slot: u64,
-    bump_seed: u8,
+    ix_data: ClaimIxData,
 ) -> ProgramResult {
+  
+    let ClaimIxData {
+            proof,
+            packed_tree_info,
+            amount,
+            lamports,   
+            mint,
+            unlock_slot,
+            bump_seed,
+        } = ix_data;
     let claimant_info = &accounts[0];
     let fee_payer_info = &accounts[1];
     let associated_airdrop_pda_info = &accounts[2];
@@ -60,12 +49,12 @@ fn process_claim(
     let _account_compression_authority_info = &accounts[7];
     let _account_compression_program_info = &accounts[8];
     let ctoken_program_info = &accounts[9];
-    let _token_pool_pda_info = &accounts[10];
+    let spl_interface_pda_info = &accounts[10];
     let decompress_destination_info = &accounts[11];
     let token_program_info = &accounts[12];
     let _system_program_info = &accounts[13];
     let state_tree_info = &accounts[14];
-    let _queue_info = &accounts[15];
+    let queue_info = &accounts[15];
 
     if accounts.len() != 16 {
         msg!("Expected 16 accounts, got {}", accounts.len());
@@ -90,9 +79,9 @@ fn process_claim(
         ctoken_program_info.key.log();
         return Err(ProgramError::InvalidArgument);
     }
-    let mut compressed_token_account = CTokenAccount::new(
+    let compressed_token_account = CTokenAccount::new(
         mint,
-        claimant_info.key.clone(),
+        associated_airdrop_pda_info.key.clone(),
         vec![TokenAccountMeta {
             amount,
             delegate_index: None,
@@ -100,21 +89,19 @@ fn process_claim(
             lamports,
             tlv: None,
         }],
-        0,
+        1,
     );
-    compressed_token_account.decompress(amount)?;
     let decompress_inputs = DecompressInputs {
         fee_payer: fee_payer_info.key.clone(),
         validity_proof: proof,
         sender_account: compressed_token_account,
         amount,
-        tree_pubkeys: vec![state_tree_info.key.clone()],
+        tree_pubkeys: vec![state_tree_info.key.clone(), queue_info.key.clone()],
         config: None,
-        spl_interface_pda: associated_airdrop_pda_info.key.clone(),
+        spl_interface_pda: spl_interface_pda_info.key.clone(),
         recipient_token_account: decompress_destination_info.key.clone(),
         spl_token_program: token_program_info.key.clone(),
     };
-
 
 
     let instruction = light_ctoken_sdk::compressed_token::transfer::instruction::decompress(

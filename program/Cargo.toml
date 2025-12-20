@@ -27,7 +27,7 @@ solana-sdk = "2.3"
 light-program-test = { version = "0.17", features = ["v2"] }
 light-client = { version = "0.17", features = ["v2"] }
 tokio = "1.4"
-spl-token = "5.0.0"
+spl-token = { version = "5.0.0", features = ["no-entrypoint"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]
